@@ -1,1 +1,28 @@
-/target
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Nimbus specific
+.nimbus/
+*.db
+*.db-shm
+*.db-wal
+
+# Testing
+coverage/
+
+# Logs
+*.log
