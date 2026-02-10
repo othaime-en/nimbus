@@ -1,0 +1,44 @@
+# Nimbus Configuration File
+# Copy this to ~/.nimbus/config.toml and customize
+
+[providers.aws]
+# AWS profile from ~/.aws/credentials (optional)
+profile = "default"
+# Default region
+region = "us-east-1"
+# Or use explicit credentials (not recommended for security)
+# access_key_id = "YOUR_ACCESS_KEY"
+# secret_access_key = "YOUR_SECRET_KEY"
+
+# [providers.gcp]
+# project_id = "my-gcp-project"
+# credentials_file = "~/.config/gcloud/application_default_credentials.json"
+# region = "us-central1"
+
+# [providers.azure]
+# subscription_id = "your-subscription-id"
+# tenant_id = "your-tenant-id"
+# client_id = "your-client-id"
+# client_secret = "your-client-secret"
+
+[ui]
+# Which tab to show on startup: "aws", "gcp", "azure", or "all"
+default_tab = "aws"
+# Automatically refresh resources periodically
+auto_refresh = true
+# Require confirmation for destructive actions (terminate, delete)
+confirm_destructive_actions = true
+
+[cache]
+# Enable local caching for offline mode
+enabled = true
+# How long to keep cached data (in hours)
+max_age_hours = 24
+# Custom cache database path (optional)
+# db_path = "~/.nimbus/cache.db"
+
+[refresh]
+# Auto-refresh interval in seconds (0 to disable)
+interval_seconds = 300
+# Refresh when application regains focus
+auto_refresh_on_focus = true
