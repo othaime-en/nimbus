@@ -1,0 +1,44 @@
+[package]
+name = "nimbus"
+version = "0.1.0"
+edition = "2024"
+authors = ["othaimeen"]
+description = "A Terminal User Interface for managing multi-cloud resources"
+license = "MIT"
+repository = "https://github.com/othaime-en/nimbus"
+
+[dependencies]
+tokio = { version = "1.35", features = ["full"] }
+ratatui = "0.26"
+crossterm = "0.27"
+aws-config = "1.1"
+aws-sdk-ec2 = "1.13"
+aws-sdk-rds = "1.13"
+aws-sdk-s3 = "1.13"
+aws-sdk-elasticloadbalancingv2 = "1.13"
+aws-sdk-route53 = "1.13"
+aws-sdk-costexplorer = "1.13"
+rusqlite = { version = "0.31", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+thiserror = "1.0"
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.11"
+dirs = "5.0"
+
+[dev-dependencies]
+mockall = "0.12"
+tempfile = "3.9"
+
+[[bin]]
+name = "nimbus"
+path = "src/main.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
