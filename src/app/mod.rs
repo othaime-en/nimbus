@@ -1,6 +1,3 @@
-// Application state management module
-// Will implement the full state management
+pub mod state;
 
-pub struct AppState {
-    // Will be implemented in later on
-}
+pub use state::{AppState, TabIndex};
