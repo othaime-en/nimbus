@@ -1,5 +1,3 @@
-use crate::error::Result;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TabIndex {
     AWS,
