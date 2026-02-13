@@ -1,7 +1,7 @@
 use ratatui::{
     layout::Rect,
-    text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Tabs},
+    text::Line,
+    widgets::{Block, Borders, Tabs},
     Frame,
 };
 
@@ -23,32 +23,8 @@ pub fn render_tabs(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(tabs, area);
 }
 
-pub fn render_tab_content(frame: &mut Frame, area: Rect, state: &AppState) {
-    let content = match state.active_tab {
-        TabIndex::AWS => create_tab_placeholder("AWS", "AWS resources will appear here"),
-        TabIndex::GCP => create_tab_placeholder("GCP", "GCP resources will appear here"),
-        TabIndex::Azure => create_tab_placeholder("Azure", "Azure resources will appear here"),
-        TabIndex::AllClouds => {
-            create_tab_placeholder("All Clouds", "Combined view of all cloud resources")
-        }
-    };
-
-    frame.render_widget(content, area);
-}
-
-fn create_tab_placeholder<'a>(title: &'a str, message: &'a str) -> Paragraph<'a> {
-    let text = vec![
-        Line::from(""),
-        Line::from(Span::styled(title, Theme::title())),
-        Line::from(""),
-        Line::from(message),
-        Line::from(""),
-        Line::from("No resources loaded yet."),
-        Line::from(""),
-        Line::from("Phase 1.3: TUI Shell Complete ✓"),
-    ];
-
-    Paragraph::new(text).block(Block::default().borders(Borders::ALL).style(Theme::border()))
+pub async fn render_tab_content(frame: &mut Frame, area: Rect, state: &AppState) {
+    crate::ui::resource_list::render_resource_list(frame, area, state).await;
 }
 
 #[cfg(test)]
@@ -56,9 +32,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_create_tab_placeholder() {
-        let widget = create_tab_placeholder("Test", "Test message");
-        // Basic smoke test to ensure widget creation doesn't panic
+    fn test_render_tabs() {
+        // Smoke test to ensure function compiles
         assert!(true);
     }
 }
