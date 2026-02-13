@@ -148,6 +148,7 @@ impl AppState {
         self.start_loading();
 
         let mut all_resources = Vec::new();
+        let mut had_error = None;
 
         for provider in &self.providers {
             let provider = provider.read().await;
@@ -156,16 +157,22 @@ impl AppState {
                     all_resources.extend(resources);
                 }
                 Err(e) => {
-                    self.set_error(format!("Failed to load resources: {}", e));
-                    return Err(e);
+                    had_error = Some(format!("Failed to load resources: {}", e));
+                    break;
                 }
             }
         }
 
+        if let Some(error) = had_error {
+            self.set_error(error.clone());
+            return Err(crate::error::NimbusError::Other(error));
+        }
+
         let mut resources = self.resources.write().await;
         *resources = all_resources;
+        drop(resources);
 
-        self.filtered_resources = (0..resources.len()).collect();
+        self.filtered_resources = (0..self.resources.read().await.len()).collect();
         self.last_refresh = Some(chrono::Utc::now());
         self.stop_loading();
 
