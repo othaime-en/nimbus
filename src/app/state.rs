@@ -1,3 +1,8 @@
+use crate::core::{CloudProvider, CloudResource};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use chrono::{DateTime, Utc};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TabIndex {
     AWS,
@@ -63,17 +68,46 @@ impl TabIndex {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ViewMode {
+    Dashboard,
+    ResourceList,
+}
+
 pub struct AppState {
+    pub providers: Vec<Arc<RwLock<Box<dyn CloudProvider>>>>,
     pub active_tab: TabIndex,
+    pub resources: Arc<RwLock<Vec<Box<dyn CloudResource>>>>,
+    pub filtered_resources: Vec<usize>,
+    pub selected_index: usize,
+    pub filter_text: String,
+    pub view_mode: ViewMode,
+    pub loading: bool,
+    pub last_refresh: Option<DateTime<Utc>>,
+    pub error_message: Option<String>,
     pub should_quit: bool,
 }
 
 impl AppState {
     pub fn new() -> Self {
         Self {
+            providers: Vec::new(),
             active_tab: TabIndex::AWS,
+            resources: Arc::new(RwLock::new(Vec::new())),
+            filtered_resources: Vec::new(),
+            selected_index: 0,
+            filter_text: String::new(),
+            view_mode: ViewMode::ResourceList,
+            loading: false,
+            last_refresh: None,
+            error_message: None,
             should_quit: false,
         }
+    }
+
+    pub fn with_providers(mut self, providers: Vec<Arc<RwLock<Box<dyn CloudProvider>>>>) -> Self {
+        self.providers = providers;
+        self
     }
 
     pub fn next_tab(&mut self) {
@@ -90,6 +124,76 @@ impl AppState {
 
     pub fn quit(&mut self) {
         self.should_quit = true;
+    }
+
+    pub fn start_loading(&mut self) {
+        self.loading = true;
+        self.error_message = None;
+    }
+
+    pub fn stop_loading(&mut self) {
+        self.loading = false;
+    }
+
+    pub fn set_error(&mut self, error: String) {
+        self.error_message = Some(error);
+        self.loading = false;
+    }
+
+    pub fn clear_error(&mut self) {
+        self.error_message = None;
+    }
+
+    pub async fn refresh_resources(&mut self) -> crate::error::Result<()> {
+        self.start_loading();
+
+        let mut all_resources = Vec::new();
+
+        for provider in &self.providers {
+            let provider = provider.read().await;
+            match provider.list_all_resources().await {
+                Ok(resources) => {
+                    all_resources.extend(resources);
+                }
+                Err(e) => {
+                    self.set_error(format!("Failed to load resources: {}", e));
+                    return Err(e);
+                }
+            }
+        }
+
+        let mut resources = self.resources.write().await;
+        *resources = all_resources;
+
+        self.filtered_resources = (0..resources.len()).collect();
+        self.last_refresh = Some(chrono::Utc::now());
+        self.stop_loading();
+
+        Ok(())
+    }
+
+    pub fn apply_filter(&mut self) {
+        // Filtering will be implemented later
+    }
+
+    pub fn next_resource(&mut self) {
+        if !self.filtered_resources.is_empty() {
+            self.selected_index = (self.selected_index + 1) % self.filtered_resources.len();
+        }
+    }
+
+    pub fn prev_resource(&mut self) {
+        if !self.filtered_resources.is_empty() {
+            if self.selected_index == 0 {
+                self.selected_index = self.filtered_resources.len() - 1;
+            } else {
+                self.selected_index -= 1;
+            }
+        }
+    }
+
+    pub fn resource_count(&self) -> usize {
+        self.filtered_resources.len()
     }
 }
 
@@ -149,6 +253,8 @@ mod tests {
         let state = AppState::new();
         assert_eq!(state.active_tab, TabIndex::AWS);
         assert!(!state.should_quit);
+        assert!(!state.loading);
+        assert_eq!(state.view_mode, ViewMode::ResourceList);
     }
 
     #[test]
@@ -177,5 +283,27 @@ mod tests {
         let mut state = AppState::new();
         state.quit();
         assert!(state.should_quit);
+    }
+
+    #[test]
+    fn test_app_state_loading() {
+        let mut state = AppState::new();
+        state.start_loading();
+        assert!(state.loading);
+        assert!(state.error_message.is_none());
+
+        state.stop_loading();
+        assert!(!state.loading);
+    }
+
+    #[test]
+    fn test_app_state_error() {
+        let mut state = AppState::new();
+        state.set_error("Test error".to_string());
+        assert_eq!(state.error_message, Some("Test error".to_string()));
+        assert!(!state.loading);
+
+        state.clear_error();
+        assert!(state.error_message.is_none());
     }
 }
