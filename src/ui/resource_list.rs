@@ -9,7 +9,7 @@ use ratatui::{
 use crate::app::AppState;
 use crate::ui::theme::Theme;
 
-pub async fn render_resource_list(frame: &mut Frame, area: Rect, state: &AppState) {
+pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
     if state.loading {
         render_loading(frame, area);
         return;

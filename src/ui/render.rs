@@ -7,7 +7,7 @@ use crate::app::AppState;
 use crate::ui::components::render_status_bar;
 use crate::ui::tabs::{render_tab_content, render_tabs};
 
-pub async fn render(frame: &mut Frame, state: &AppState) {
+pub async fn render(frame: &mut Frame<'_>, state: &AppState) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([

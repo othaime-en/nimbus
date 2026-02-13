@@ -23,7 +23,7 @@ pub fn render_tabs(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(tabs, area);
 }
 
-pub async fn render_tab_content(frame: &mut Frame, area: Rect, state: &AppState) {
+pub async fn render_tab_content(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
     crate::ui::resource_list::render_resource_list(frame, area, state).await;
 }
 
