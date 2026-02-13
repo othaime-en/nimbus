@@ -41,4 +41,34 @@ impl Theme {
     pub fn help_text() -> Style {
         Style::default().fg(Color::White)
     }
+
+    pub fn table_header() -> Style {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn selected_row() -> Style {
+        Style::default()
+            .bg(Color::DarkGray)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn error() -> Style {
+        Style::default()
+            .fg(Color::Red)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn success() -> Style {
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn warning() -> Style {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    }
 }
