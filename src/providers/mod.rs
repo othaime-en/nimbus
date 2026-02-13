@@ -1,3 +1,3 @@
-// Cloud provider implementations
-
 pub mod aws;
+
+pub use aws::AWSProvider;
