@@ -4,10 +4,17 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use log::{error, info};
-use nimbus::{app::AppState, app::TabIndex, ui, NimbusConfig, Result};
+use nimbus::{
+    app::{AppState, TabIndex},
+    core::CloudProvider,
+    providers::AWSProvider,
+    ui, NimbusConfig, Result,
+};
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
+use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -40,29 +47,60 @@ async fn main() -> Result<()> {
 
     info!("Configuration validated successfully");
 
-    if config.providers.aws.is_some() {
-        info!("AWS provider configured");
-    }
-    if config.providers.gcp.is_some() {
-        info!("GCP provider configured");
-    }
-    if config.providers.azure.is_some() {
-        info!("Azure provider configured");
+    let mut providers: Vec<Arc<RwLock<Box<dyn nimbus::core::CloudProvider>>>> = Vec::new();
+
+    if let Some(aws_config) = config.providers.aws {
+        info!("Initializing AWS provider...");
+        let mut aws_provider = AWSProvider::new(aws_config);
+
+        match aws_provider.authenticate().await {
+            Ok(_) => {
+                info!("AWS provider authenticated successfully");
+                providers.push(Arc::new(RwLock::new(Box::new(aws_provider)
+                    as Box<dyn nimbus::core::CloudProvider>)));
+            }
+            Err(e) => {
+                error!("AWS authentication failed: {}", e);
+                error!("Continuing without AWS provider");
+            }
+        }
     }
 
-    run_tui().await?;
+    if config.providers.gcp.is_some() {
+        info!("GCP provider configured (not implemented yet)");
+    }
+    if config.providers.azure.is_some() {
+        info!("Azure provider configured (not implemented yet)");
+    }
+
+    if providers.is_empty() {
+        error!("No providers available. Please check your configuration.");
+        return Err(nimbus::NimbusError::ConfigError(
+            "No cloud providers available".to_string(),
+        ));
+    }
+
+    run_tui(providers).await?;
 
     Ok(())
 }
 
-async fn run_tui() -> Result<()> {
+async fn run_tui(
+    providers: Vec<Arc<RwLock<Box<dyn nimbus::core::CloudProvider>>>>,
+) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app_state = AppState::new();
+    let mut app_state = AppState::new().with_providers(providers);
+
+    info!("Loading initial resources...");
+    if let Err(e) = app_state.refresh_resources().await {
+        error!("Failed to load initial resources: {}", e);
+    }
+
     let result = run_app(&mut terminal, &mut app_state).await;
 
     disable_raw_mode()?;
@@ -87,7 +125,12 @@ async fn run_app(
     app_state: &mut AppState,
 ) -> Result<()> {
     loop {
-        terminal.draw(|f| ui::render(f, app_state))?;
+        terminal.draw(|f| {
+            let future = ui::render(f, app_state);
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(future)
+            });
+        })?;
 
         if app_state.should_quit {
             break;
@@ -104,6 +147,16 @@ async fn run_app(
                         KeyCode::Char('2') => app_state.set_tab(TabIndex::GCP),
                         KeyCode::Char('3') => app_state.set_tab(TabIndex::Azure),
                         KeyCode::Char('4') => app_state.set_tab(TabIndex::AllClouds),
+                        KeyCode::Char('r') => {
+                            info!("Refreshing resources...");
+                            if let Err(e) = app_state.refresh_resources().await {
+                                error!("Refresh failed: {}", e);
+                            } else {
+                                info!("Resources refreshed successfully");
+                            }
+                        }
+                        KeyCode::Up => app_state.prev_resource(),
+                        KeyCode::Down => app_state.next_resource(),
                         _ => {}
                     }
                 }

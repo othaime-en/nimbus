@@ -12,6 +12,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect) {
         ("q", "Quit"),
         ("Tab", "Next Tab"),
         ("1-4", "Jump to Tab"),
+        ("r", "Refresh"),
         ("?", "Help"),
     ];
 

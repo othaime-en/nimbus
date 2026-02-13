@@ -12,6 +12,7 @@ tokio = { version = "1.35", features = ["full"] }
 ratatui = "0.26"
 crossterm = "0.27"
 aws-config = "1.1"
+aws-credential-types = "1.1"
 aws-sdk-ec2 = "1.13"
 aws-sdk-rds = "1.13"
 aws-sdk-s3 = "1.13"
