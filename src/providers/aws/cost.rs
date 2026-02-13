@@ -1,6 +1,6 @@
 use crate::core::{CostBreakdown, CostPeriod};
 use crate::error::{NimbusError, Result};
-use aws_sdk_costexplorer::types::{DateInterval, Granularity, GroupDefinition, Metric};
+use aws_sdk_costexplorer::types::{DateInterval, Granularity, GroupDefinition};
 use aws_sdk_costexplorer::Client as CostExplorerClient;
 use chrono::{Duration, Utc};
 
@@ -27,7 +27,7 @@ impl AwsCostExplorer {
                     .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
             )
             .granularity(Granularity::Monthly)
-            .metrics(Metric::UnblendedCost)
+            .metrics("UnblendedCost")
             .send()
             .await
             .map_err(|e| {
@@ -37,13 +37,11 @@ impl AwsCostExplorer {
         let total: f64 = response
             .results_by_time()
             .iter()
-            .flat_map(|result| result.total())
-            .filter_map(|(key, metric)| {
-                if key == "UnblendedCost" {
-                    metric.amount().and_then(|a| a.parse::<f64>().ok())
-                } else {
-                    None
-                }
+            .filter_map(|result| {
+                result.total()
+                    .and_then(|total_map| total_map.get("UnblendedCost"))
+                    .and_then(|metric| metric.amount())
+                    .and_then(|amount| amount.parse::<f64>().ok())
             })
             .sum();
 
@@ -65,7 +63,7 @@ impl AwsCostExplorer {
                     .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
             )
             .granularity(Granularity::Monthly)
-            .metrics(Metric::UnblendedCost)
+            .metrics("UnblendedCost")
             .group_by(
                 GroupDefinition::builder()
                     .r#type(aws_sdk_costexplorer::types::GroupDefinitionType::Dimension)
@@ -82,15 +80,14 @@ impl AwsCostExplorer {
 
         for result in by_service.results_by_time() {
             for group in result.groups() {
-                if let Some(keys) = group.keys() {
-                    if let Some(service_name) = keys.first() {
-                        if let Some(metrics) = group.metrics() {
-                            if let Some(cost_metric) = metrics.get("UnblendedCost") {
-                                if let Some(amount_str) = cost_metric.amount() {
-                                    if let Ok(amount) = amount_str.parse::<f64>() {
-                                        breakdown.add_service_cost(service_name.clone(), amount);
-                                        breakdown.total += amount;
-                                    }
+                let keys = group.keys();
+                if let Some(service_name) = keys.first() {
+                    if let Some(metrics) = group.metrics() {
+                        if let Some(cost_metric) = metrics.get("UnblendedCost") {
+                            if let Some(amount_str) = cost_metric.amount() {
+                                if let Ok(amount) = amount_str.parse::<f64>() {
+                                    breakdown.add_service_cost(service_name.to_string(), amount);
+                                    breakdown.total += amount;
                                 }
                             }
                         }
@@ -110,7 +107,7 @@ impl AwsCostExplorer {
                     .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
             )
             .granularity(Granularity::Monthly)
-            .metrics(Metric::UnblendedCost)
+            .metrics("UnblendedCost")
             .group_by(
                 GroupDefinition::builder()
                     .r#type(aws_sdk_costexplorer::types::GroupDefinitionType::Dimension)
@@ -125,14 +122,13 @@ impl AwsCostExplorer {
 
         for result in by_region.results_by_time() {
             for group in result.groups() {
-                if let Some(keys) = group.keys() {
-                    if let Some(region_name) = keys.first() {
-                        if let Some(metrics) = group.metrics() {
-                            if let Some(cost_metric) = metrics.get("UnblendedCost") {
-                                if let Some(amount_str) = cost_metric.amount() {
-                                    if let Ok(amount) = amount_str.parse::<f64>() {
-                                        breakdown.add_region_cost(region_name.clone(), amount);
-                                    }
+                let keys = group.keys();
+                if let Some(region_name) = keys.first() {
+                    if let Some(metrics) = group.metrics() {
+                        if let Some(cost_metric) = metrics.get("UnblendedCost") {
+                            if let Some(amount_str) = cost_metric.amount() {
+                                if let Ok(amount) = amount_str.parse::<f64>() {
+                                    breakdown.add_region_cost(region_name.to_string(), amount);
                                 }
                             }
                         }
@@ -171,7 +167,7 @@ impl AwsCostExplorer {
                     .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
             )
             .granularity(Granularity::Monthly)
-            .metrics(Metric::UnblendedCost)
+            .metrics("UnblendedCost")
             .send()
             .await
             .map_err(|e| {
@@ -181,13 +177,11 @@ impl AwsCostExplorer {
         let total: f64 = response
             .results_by_time()
             .iter()
-            .flat_map(|result| result.total())
-            .filter_map(|(key, metric)| {
-                if key == "UnblendedCost" {
-                    metric.amount().and_then(|a| a.parse::<f64>().ok())
-                } else {
-                    None
-                }
+            .filter_map(|result| {
+                result.total()
+                    .and_then(|total_map| total_map.get("UnblendedCost"))
+                    .and_then(|metric| metric.amount())
+                    .and_then(|amount| amount.parse::<f64>().ok())
             })
             .sum();
 
