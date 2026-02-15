@@ -5,16 +5,27 @@ use ratatui::{
     Frame,
 };
 
+use crate::app::AppState;
 use crate::ui::theme::Theme;
 
-pub fn render_status_bar(frame: &mut Frame, area: Rect) {
-    let shortcuts = vec![
-        ("q", "Quit"),
-        ("Tab", "Next Tab"),
-        ("1-4", "Jump to Tab"),
-        ("r", "Refresh"),
-        ("?", "Help"),
-    ];
+pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
+    let shortcuts = if state.is_filtering() {
+        vec![
+            ("Type", "to filter"),
+            ("ESC", "Exit filter"),
+            ("Backspace", "Delete"),
+            ("Enter", "Apply"),
+        ]
+    } else {
+        vec![
+            ("q", "Quit"),
+            ("Tab", "Next Tab"),
+            ("1-4", "Jump to Tab"),
+            ("r", "Refresh"),
+            ("/", "Filter"),
+            ("↑↓", "Navigate"),
+        ]
+    };
 
     let spans: Vec<Span> = shortcuts
         .iter()
