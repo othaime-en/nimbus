@@ -71,4 +71,23 @@ impl Theme {
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD)
     }
+
+    pub fn filter_active() -> Style {
+        Style::default()
+            .fg(Color::Yellow)
+            .bg(Color::Black)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn filter_inactive() -> Style {
+        Style::default()
+            .fg(Color::White)
+            .bg(Color::Black)
+    }
+
+    pub fn spinner() -> Style {
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD)
+    }
 }

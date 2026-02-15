@@ -139,25 +139,54 @@ async fn run_app(
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    match key.code {
-                        KeyCode::Char('q') => app_state.quit(),
-                        KeyCode::Tab => app_state.next_tab(),
-                        KeyCode::BackTab => app_state.prev_tab(),
-                        KeyCode::Char('1') => app_state.set_tab(TabIndex::AWS),
-                        KeyCode::Char('2') => app_state.set_tab(TabIndex::GCP),
-                        KeyCode::Char('3') => app_state.set_tab(TabIndex::Azure),
-                        KeyCode::Char('4') => app_state.set_tab(TabIndex::AllClouds),
-                        KeyCode::Char('r') => {
-                            info!("Refreshing resources...");
-                            if let Err(e) = app_state.refresh_resources().await {
-                                error!("Refresh failed: {}", e);
-                            } else {
-                                info!("Resources refreshed successfully");
+                    if app_state.is_filtering() {
+                        match key.code {
+                            KeyCode::Char(c) => {
+                                app_state.push_filter_char(c);
                             }
+                            KeyCode::Backspace => {
+                                app_state.pop_filter_char();
+                            }
+                            KeyCode::Esc => {
+                                app_state.exit_filter_mode();
+                                if app_state.filter_text.is_empty() {
+                                    app_state.apply_filter();
+                                }
+                            }
+                            KeyCode::Enter => {
+                                app_state.exit_filter_mode();
+                            }
+                            _ => {}
                         }
-                        KeyCode::Up => app_state.prev_resource(),
-                        KeyCode::Down => app_state.next_resource(),
-                        _ => {}
+                    } else {
+                        match key.code {
+                            KeyCode::Char('q') => app_state.quit(),
+                            KeyCode::Tab => app_state.next_tab(),
+                            KeyCode::BackTab => app_state.prev_tab(),
+                            KeyCode::Char('1') => app_state.set_tab(TabIndex::AWS),
+                            KeyCode::Char('2') => app_state.set_tab(TabIndex::GCP),
+                            KeyCode::Char('3') => app_state.set_tab(TabIndex::Azure),
+                            KeyCode::Char('4') => app_state.set_tab(TabIndex::AllClouds),
+                            KeyCode::Char('/') => {
+                                app_state.enter_filter_mode();
+                            }
+                            KeyCode::Esc => {
+                                if !app_state.filter_text.is_empty() {
+                                    app_state.clear_filter();
+                                }
+                            }
+                            KeyCode::Char('r') => {
+                                info!("Refreshing resources...");
+                                if let Err(e) = app_state.refresh_resources().await {
+                                    error!("Refresh failed: {}", e);
+                                } else {
+                                    info!("Resources refreshed successfully");
+                                }
+                            }
+                            KeyCode::Up => app_state.prev_resource(),
+                            KeyCode::Down => app_state.next_resource(),
+                            _ => {}
+                        }
                     }
                 }
             }

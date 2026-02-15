@@ -74,6 +74,12 @@ pub enum ViewMode {
     ResourceList,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InputMode {
+    Normal,
+    Filter,
+}
+
 pub struct AppState {
     pub providers: Vec<Arc<RwLock<Box<dyn CloudProvider>>>>,
     pub active_tab: TabIndex,
@@ -82,6 +88,7 @@ pub struct AppState {
     pub selected_index: usize,
     pub filter_text: String,
     pub view_mode: ViewMode,
+    pub input_mode: InputMode,
     pub loading: bool,
     pub last_refresh: Option<DateTime<Utc>>,
     pub error_message: Option<String>,
@@ -98,6 +105,7 @@ impl AppState {
             selected_index: 0,
             filter_text: String::new(),
             view_mode: ViewMode::ResourceList,
+            input_mode: InputMode::Normal,
             loading: false,
             last_refresh: None,
             error_message: None,
@@ -144,6 +152,33 @@ impl AppState {
         self.error_message = None;
     }
 
+    pub fn enter_filter_mode(&mut self) {
+        self.input_mode = InputMode::Filter;
+    }
+
+    pub fn exit_filter_mode(&mut self) {
+        self.input_mode = InputMode::Normal;
+    }
+
+    pub fn is_filtering(&self) -> bool {
+        self.input_mode == InputMode::Filter
+    }
+
+    pub fn push_filter_char(&mut self, c: char) {
+        self.filter_text.push(c);
+        self.apply_filter();
+    }
+
+    pub fn pop_filter_char(&mut self) {
+        self.filter_text.pop();
+        self.apply_filter();
+    }
+
+    pub fn clear_filter(&mut self) {
+        self.filter_text.clear();
+        self.apply_filter();
+    }
+
     pub async fn refresh_resources(&mut self) -> crate::error::Result<()> {
         self.start_loading();
 
@@ -172,7 +207,7 @@ impl AppState {
         *resources = all_resources;
         drop(resources);
 
-        self.filtered_resources = (0..self.resources.read().await.len()).collect();
+        self.apply_filter();
         self.last_refresh = Some(chrono::Utc::now());
         self.stop_loading();
 
@@ -180,7 +215,37 @@ impl AppState {
     }
 
     pub fn apply_filter(&mut self) {
-        // Filtering will be implemented later
+        let filter_lower = self.filter_text.to_lowercase();
+        
+        if filter_lower.is_empty() {
+            self.filtered_resources = (0..tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    self.resources.read().await.len()
+                })
+            })).collect();
+        } else {
+            self.filtered_resources = tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(async {
+                    let resources = self.resources.read().await;
+                    resources
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, resource)| {
+                            resource.name().to_lowercase().contains(&filter_lower)
+                                || resource.id().to_lowercase().contains(&filter_lower)
+                                || resource.resource_type().as_str().to_lowercase().contains(&filter_lower)
+                                || resource.state().as_str().to_lowercase().contains(&filter_lower)
+                                || resource.region().to_lowercase().contains(&filter_lower)
+                        })
+                        .map(|(idx, _)| idx)
+                        .collect()
+                })
+            });
+        }
+
+        if self.selected_index >= self.filtered_resources.len() && !self.filtered_resources.is_empty() {
+            self.selected_index = self.filtered_resources.len() - 1;
+        }
     }
 
     pub fn next_resource(&mut self) {
@@ -201,6 +266,14 @@ impl AppState {
 
     pub fn resource_count(&self) -> usize {
         self.filtered_resources.len()
+    }
+
+    pub fn total_resource_count(&self) -> usize {
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                self.resources.read().await.len()
+            })
+        })
     }
 }
 
@@ -262,6 +335,7 @@ mod tests {
         assert!(!state.should_quit);
         assert!(!state.loading);
         assert_eq!(state.view_mode, ViewMode::ResourceList);
+        assert_eq!(state.input_mode, InputMode::Normal);
     }
 
     #[test]
@@ -312,5 +386,37 @@ mod tests {
 
         state.clear_error();
         assert!(state.error_message.is_none());
+    }
+
+    #[test]
+    fn test_filter_mode() {
+        let mut state = AppState::new();
+        assert_eq!(state.input_mode, InputMode::Normal);
+        assert!(!state.is_filtering());
+
+        state.enter_filter_mode();
+        assert_eq!(state.input_mode, InputMode::Filter);
+        assert!(state.is_filtering());
+
+        state.exit_filter_mode();
+        assert_eq!(state.input_mode, InputMode::Normal);
+        assert!(!state.is_filtering());
+    }
+
+    #[test]
+    fn test_filter_text_manipulation() {
+        let mut state = AppState::new();
+        
+        state.push_filter_char('t');
+        state.push_filter_char('e');
+        state.push_filter_char('s');
+        state.push_filter_char('t');
+        assert_eq!(state.filter_text, "test");
+
+        state.pop_filter_char();
+        assert_eq!(state.filter_text, "tes");
+
+        state.clear_filter();
+        assert_eq!(state.filter_text, "");
     }
 }
