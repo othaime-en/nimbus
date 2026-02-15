@@ -19,5 +19,5 @@ pub async fn render(frame: &mut Frame<'_>, state: &AppState) {
 
     render_tabs(frame, chunks[0], state);
     render_tab_content(frame, chunks[1], state).await;
-    render_status_bar(frame, chunks[2]);
+    render_status_bar(frame, chunks[2], state);
 }
