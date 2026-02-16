@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::app::AppState;
-use crate::ui::theme::Theme;
+use crate::ui::theme::{resource_icon, Theme};
 
 pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
     let (filter_area, table_area) = if state.is_filtering() || !state.filter_text.is_empty() {
@@ -35,7 +35,7 @@ pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &App
     }
 
     let resources = state.resources.try_read();
-    
+
     if resources.is_err() {
         render_message(frame, table_area, "Loading resources...");
         return;
@@ -69,8 +69,11 @@ pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &App
                     .map(|c| format!("${:.2}", c))
                     .unwrap_or_else(|| "-".to_string());
 
+                let type_icon = resource_icon(resource.resource_type());
+                let type_display = format!("{} {}", type_icon, resource.resource_type().as_str());
+
                 let cells = vec![
-                    Cell::from(resource.resource_type().as_str()),
+                    Cell::from(type_display),
                     Cell::from(resource.name()),
                     Cell::from(resource.id()),
                     Cell::from(resource.state().as_str()).style(state_style(resource.state())),
@@ -88,7 +91,7 @@ pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &App
         .collect();
 
     let widths = [
-        Constraint::Length(12),
+        Constraint::Length(18),
         Constraint::Min(20),
         Constraint::Min(18),
         Constraint::Length(10),
@@ -132,17 +135,15 @@ fn render_filter_input(frame: &mut Frame, area: Rect, state: &AppState) {
         Theme::filter_inactive()
     };
 
-    let input = Paragraph::new(filter_text)
-        .style(style)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(if state.is_filtering() {
-                    Theme::filter_active()
-                } else {
-                    Theme::border()
-                }),
-        );
+    let input = Paragraph::new(filter_text).style(style).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(if state.is_filtering() {
+                Theme::filter_active()
+            } else {
+                Theme::border()
+            }),
+    );
 
     frame.render_widget(input, area);
 }

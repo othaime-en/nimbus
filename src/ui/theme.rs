@@ -1,4 +1,5 @@
 use ratatui::style::{Color, Modifier, Style};
+use crate::core::ResourceType;
 
 pub struct Theme;
 
@@ -11,15 +12,11 @@ impl Theme {
     }
 
     pub fn tab_inactive() -> Style {
-        Style::default()
-            .fg(Color::White)
-            .bg(Color::DarkGray)
+        Style::default().fg(Color::White).bg(Color::DarkGray)
     }
 
     pub fn status_bar() -> Style {
-        Style::default()
-            .fg(Color::White)
-            .bg(Color::Blue)
+        Style::default().fg(Color::White).bg(Color::Blue)
     }
 
     pub fn border() -> Style {
@@ -80,14 +77,41 @@ impl Theme {
     }
 
     pub fn filter_inactive() -> Style {
-        Style::default()
-            .fg(Color::White)
-            .bg(Color::Black)
+        Style::default().fg(Color::White).bg(Color::Black)
     }
 
     pub fn spinner() -> Style {
         Style::default()
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD)
+    }
+}
+
+pub fn resource_icon(resource_type: ResourceType) -> &'static str {
+    match resource_type {
+        ResourceType::Compute => "[EC2]",
+        ResourceType::Database => "[RDS]",
+        ResourceType::Storage => "[S3] ",
+        ResourceType::LoadBalancer => "[ELB]",
+        ResourceType::DNS => "[R53]",
+        ResourceType::Container => "[ECS]",
+        ResourceType::Serverless => "[λ]  ",
+        ResourceType::Network => "[VPC]",
+        ResourceType::Cache => "[???]",
+        ResourceType::Queue => "[SQS]",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resource_icons() {
+        assert_eq!(resource_icon(ResourceType::Compute), "[EC2]");
+        assert_eq!(resource_icon(ResourceType::Database), "[RDS]");
+        assert_eq!(resource_icon(ResourceType::Storage), "[S3] ");
+        assert_eq!(resource_icon(ResourceType::LoadBalancer), "[ELB]");
+        assert_eq!(resource_icon(ResourceType::DNS), "[R53]");
     }
 }

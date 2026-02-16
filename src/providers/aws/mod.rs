@@ -15,7 +15,7 @@ pub mod resources;
 use auth::AwsAuth;
 use client::AwsClient;
 use cost::AwsCostExplorer;
-use resources::EC2Instance;
+use resources::{EC2Instance, ELBLoadBalancer, RDSInstance, Route53Zone, S3Bucket};
 
 pub struct AWSProvider {
     name: String,
@@ -63,6 +63,200 @@ impl AWSProvider {
             )
         })
     }
+
+    async fn list_ec2_instances(&self) -> Result<Vec<Box<dyn CloudResource>>> {
+        let client = self.get_client()?;
+        let response = client
+            .ec2
+            .describe_instances()
+            .send()
+            .await
+            .map_err(|e| {
+                NimbusError::provider("AWS", format!("Failed to list EC2 instances: {}", e))
+            })?;
+
+        let mut instances: Vec<Box<dyn CloudResource>> = Vec::new();
+
+        for reservation in response.reservations() {
+            for instance in reservation.instances() {
+                let ec2_instance = EC2Instance::from_aws_instance(instance, &self.config.region);
+                instances.push(Box::new(ec2_instance));
+            }
+        }
+
+        Ok(instances)
+    }
+
+    async fn list_rds_instances(&self) -> Result<Vec<Box<dyn CloudResource>>> {
+        let client = self.get_client()?;
+        let response = client
+            .rds
+            .describe_db_instances()
+            .send()
+            .await
+            .map_err(|e| {
+                NimbusError::provider("AWS", format!("Failed to list RDS instances: {}", e))
+            })?;
+
+        let mut instances: Vec<Box<dyn CloudResource>> = Vec::new();
+
+        for db_instance in response.db_instances() {
+            let rds_instance = RDSInstance::from_aws_instance(db_instance, &self.config.region);
+            instances.push(Box::new(rds_instance));
+        }
+
+        Ok(instances)
+    }
+
+    async fn list_s3_buckets(&self) -> Result<Vec<Box<dyn CloudResource>>> {
+        let client = self.get_client()?;
+        let response = client.s3.list_buckets().send().await.map_err(|e| {
+            NimbusError::provider("AWS", format!("Failed to list S3 buckets: {}", e))
+        })?;
+
+        let mut buckets: Vec<Box<dyn CloudResource>> = Vec::new();
+
+        for bucket in response.buckets() {
+            if let Some(name) = bucket.name() {
+                let created_at = bucket.creation_date().and_then(|dt| {
+                    chrono::DateTime::parse_from_rfc3339(&dt.to_string())
+                        .ok()
+                        .map(|parsed| parsed.with_timezone(&chrono::Utc))
+                });
+
+                let tags = self.get_bucket_tags(name).await.unwrap_or_default();
+
+                let s3_bucket = S3Bucket::new(
+                    name.to_string(),
+                    self.config.region.clone(),
+                    created_at,
+                    tags,
+                );
+
+                buckets.push(Box::new(s3_bucket));
+            }
+        }
+
+        Ok(buckets)
+    }
+
+    async fn get_bucket_tags(&self, bucket_name: &str) -> Result<std::collections::HashMap<String, String>> {
+        let client = self.get_client()?;
+        
+        match client.s3.get_bucket_tagging().bucket(bucket_name).send().await {
+            Ok(response) => {
+                let tags = response
+                    .tag_set()
+                    .iter()
+                    .map(|tag| (tag.key().to_string(), tag.value().to_string()))
+                    .collect();
+                Ok(tags)
+            }
+            Err(_) => Ok(std::collections::HashMap::new()),
+        }
+    }
+
+    async fn list_load_balancers(&self) -> Result<Vec<Box<dyn CloudResource>>> {
+        let client = self.get_client()?;
+        let response = client
+            .elb
+            .describe_load_balancers()
+            .send()
+            .await
+            .map_err(|e| {
+                NimbusError::provider("AWS", format!("Failed to list load balancers: {}", e))
+            })?;
+
+        let mut load_balancers: Vec<Box<dyn CloudResource>> = Vec::new();
+
+        for lb in response.load_balancers() {
+            let elb = ELBLoadBalancer::from_aws_lb(lb, &self.config.region);
+            
+            if let Some(arn) = lb.load_balancer_arn() {
+                let tags = self.get_lb_tags(arn).await.unwrap_or_default();
+                load_balancers.push(Box::new(elb.with_tags(tags)));
+            } else {
+                load_balancers.push(Box::new(elb));
+            }
+        }
+
+        Ok(load_balancers)
+    }
+
+    async fn get_lb_tags(&self, lb_arn: &str) -> Result<std::collections::HashMap<String, String>> {
+        let client = self.get_client()?;
+        
+        match client.elb.describe_tags().resource_arns(lb_arn).send().await {
+            Ok(response) => {
+                let tags = response
+                    .tag_descriptions()
+                    .iter()
+                    .flat_map(|desc| desc.tags())
+                    .filter_map(|tag| {
+                        match (tag.key(), tag.value()) {
+                            (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                            _ => None,
+                        }
+                    })
+                    .collect();
+                Ok(tags)
+            }
+            Err(_) => Ok(std::collections::HashMap::new()),
+        }
+    }
+
+    async fn list_route53_zones(&self) -> Result<Vec<Box<dyn CloudResource>>> {
+        let client = self.get_client()?;
+        let response = client
+            .route53
+            .list_hosted_zones()
+            .send()
+            .await
+            .map_err(|e| {
+                NimbusError::provider("AWS", format!("Failed to list Route53 zones: {}", e))
+            })?;
+
+        let mut zones: Vec<Box<dyn CloudResource>> = Vec::new();
+
+        for zone in response.hosted_zones() {
+            let route53_zone = Route53Zone::from_aws_zone(zone, "global");
+            let zone_id = zone.id();
+            let tags = self.get_zone_tags(zone_id).await.unwrap_or_default();
+            zones.push(Box::new(route53_zone.with_tags(tags)));
+        }
+
+        Ok(zones)
+    }
+
+    async fn get_zone_tags(&self, zone_id: &str) -> Result<std::collections::HashMap<String, String>> {
+        let client = self.get_client()?;
+        
+        match client.route53.list_tags_for_resource()
+            .resource_type(aws_sdk_route53::types::TagResourceType::Hostedzone)
+            .resource_id(zone_id)
+            .send()
+            .await
+        {
+            Ok(response) => {
+                let tags = response
+                    .resource_tag_set()
+                    .map(|set| {
+                        set.tags()
+                            .iter()
+                            .filter_map(|tag| {
+                                match (tag.key(), tag.value()) {
+                                    (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                                    _ => None,
+                                }
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                Ok(tags)
+            }
+            Err(_) => Ok(std::collections::HashMap::new()),
+        }
+    }
 }
 
 #[async_trait]
@@ -108,8 +302,25 @@ impl CloudProvider for AWSProvider {
 
         let mut all_resources: Vec<Box<dyn CloudResource>> = Vec::new();
 
-        let ec2_instances = self.list_resources_by_type(ResourceType::Compute).await?;
-        all_resources.extend(ec2_instances);
+        if let Ok(ec2) = self.list_ec2_instances().await {
+            all_resources.extend(ec2);
+        }
+
+        if let Ok(rds) = self.list_rds_instances().await {
+            all_resources.extend(rds);
+        }
+
+        if let Ok(s3) = self.list_s3_buckets().await {
+            all_resources.extend(s3);
+        }
+
+        if let Ok(elb) = self.list_load_balancers().await {
+            all_resources.extend(elb);
+        }
+
+        if let Ok(route53) = self.list_route53_zones().await {
+            all_resources.extend(route53);
+        }
 
         Ok(all_resources)
     }
@@ -121,54 +332,37 @@ impl CloudProvider for AWSProvider {
         self.ensure_authenticated().await?;
 
         match resource_type {
-            ResourceType::Compute => {
-                let client = self.get_client()?;
-                let response = client
-                    .ec2
-                    .describe_instances()
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        NimbusError::provider("AWS", format!("Failed to list EC2 instances: {}", e))
-                    })?;
-
-                let mut instances: Vec<Box<dyn CloudResource>> = Vec::new();
-
-                for reservation in response.reservations() {
-                    for instance in reservation.instances() {
-                        let ec2_instance = EC2Instance::from_aws_instance(instance, &self.config.region);
-                        instances.push(Box::new(ec2_instance));
-                    }
-                }
-
-                Ok(instances)
-            }
+            ResourceType::Compute => self.list_ec2_instances().await,
+            ResourceType::Database => self.list_rds_instances().await,
+            ResourceType::Storage => self.list_s3_buckets().await,
+            ResourceType::LoadBalancer => self.list_load_balancers().await,
+            ResourceType::DNS => self.list_route53_zones().await,
             _ => Ok(Vec::new()),
         }
     }
 
     async fn get_resource(&self, id: &str) -> Result<Box<dyn CloudResource>> {
         self.ensure_authenticated().await?;
-        let client = self.get_client()?;
+        
+        if id.starts_with("i-") {
+            let client = self.get_client()?;
+            let response = client
+                .ec2
+                .describe_instances()
+                .instance_ids(id)
+                .send()
+                .await
+                .map_err(|e| {
+                    NimbusError::provider("AWS", format!("Failed to get instance {}: {}", id, e))
+                })?;
 
-        let response = client
-            .ec2
-            .describe_instances()
-            .instance_ids(id)
-            .send()
-            .await
-            .map_err(|e| {
-                NimbusError::provider(
-                    "AWS",
-                    format!("Failed to get instance {}: {}", id, e),
-                )
-            })?;
-
-        for reservation in response.reservations() {
-            for instance in reservation.instances() {
-                if instance.instance_id() == Some(id) {
-                    let ec2_instance = EC2Instance::from_aws_instance(instance, &self.config.region);
-                    return Ok(Box::new(ec2_instance));
+            for reservation in response.reservations() {
+                for instance in reservation.instances() {
+                    if instance.instance_id() == Some(id) {
+                        let ec2_instance =
+                            EC2Instance::from_aws_instance(instance, &self.config.region);
+                        return Ok(Box::new(ec2_instance));
+                    }
                 }
             }
         }
@@ -241,10 +435,7 @@ impl CloudProvider for AWSProvider {
                     })?;
                 Ok(())
             }
-            _ => Err(NimbusError::UnsupportedAction(
-                action,
-                ResourceType::Compute,
-            )),
+            _ => Err(NimbusError::UnsupportedAction(action, ResourceType::Compute)),
         }
     }
 
@@ -331,6 +522,9 @@ mod tests {
 
         let result = provider.list_all_resources().await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), NimbusError::AuthenticationFailed(_, _)));
+        assert!(matches!(
+            result.unwrap_err(),
+            NimbusError::AuthenticationFailed(_, _)
+        ));
     }
 }
