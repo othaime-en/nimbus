@@ -14,10 +14,10 @@ pub struct Route53Zone {
 
 impl Route53Zone {
     pub fn from_aws_zone(zone: &HostedZone, region: &str) -> Self {
-        let zone_id = zone.id().unwrap_or("").to_string();
-        let name = zone.name().unwrap_or("").to_string();
+        let zone_id = zone.id().to_string();
+        let name = zone.name().to_string();
         let is_private = zone.config()
-            .and_then(|c| c.private_zone())
+            .map(|c| c.private_zone())
             .unwrap_or(false);
         let resource_record_set_count = zone.resource_record_set_count();
 

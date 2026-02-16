@@ -148,13 +148,7 @@ impl AWSProvider {
                 let tags = response
                     .tag_set()
                     .iter()
-                    .filter_map(|tag| {
-                        if let (Some(key), Some(value)) = (tag.key(), tag.value()) {
-                            Some((key.to_string(), value.to_string()))
-                        } else {
-                            None
-                        }
-                    })
+                    .map(|tag| (tag.key().to_string(), tag.value().to_string()))
                     .collect();
                 Ok(tags)
             }
@@ -199,10 +193,9 @@ impl AWSProvider {
                     .iter()
                     .flat_map(|desc| desc.tags())
                     .filter_map(|tag| {
-                        if let (Some(key), Some(value)) = (tag.key(), tag.value()) {
-                            Some((key.to_string(), value.to_string()))
-                        } else {
-                            None
+                        match (tag.key(), tag.value()) {
+                            (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                            _ => None,
                         }
                     })
                     .collect();
@@ -227,13 +220,9 @@ impl AWSProvider {
 
         for zone in response.hosted_zones() {
             let route53_zone = Route53Zone::from_aws_zone(zone, "global");
-            
-            if let Some(zone_id) = zone.id() {
-                let tags = self.get_zone_tags(zone_id).await.unwrap_or_default();
-                zones.push(Box::new(route53_zone.with_tags(tags)));
-            } else {
-                zones.push(Box::new(route53_zone));
-            }
+            let zone_id = zone.id();
+            let tags = self.get_zone_tags(zone_id).await.unwrap_or_default();
+            zones.push(Box::new(route53_zone.with_tags(tags)));
         }
 
         Ok(zones)
@@ -251,15 +240,13 @@ impl AWSProvider {
             Ok(response) => {
                 let tags = response
                     .resource_tag_set()
-                    .and_then(|set| set.tags())
-                    .map(|tag_list| {
-                        tag_list
+                    .map(|set| {
+                        set.tags()
                             .iter()
                             .filter_map(|tag| {
-                                if let (Some(key), Some(value)) = (tag.key(), tag.value()) {
-                                    Some((key.to_string(), value.to_string()))
-                                } else {
-                                    None
+                                match (tag.key(), tag.value()) {
+                                    (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                                    _ => None,
                                 }
                             })
                             .collect()
