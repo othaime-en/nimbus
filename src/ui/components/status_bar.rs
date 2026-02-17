@@ -5,7 +5,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::AppState;
+use crate::app::{AppState, ViewMode};
 use crate::ui::theme::Theme;
 
 pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -17,14 +17,27 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
             ("Enter", "Apply"),
         ]
     } else {
-        vec![
+        let view_hint = match state.view_mode {
+            ViewMode::Dashboard => "List",
+            ViewMode::ResourceList => "Dashboard",
+        };
+        
+        let mut base_shortcuts = vec![
             ("q", "Quit"),
             ("Tab", "Next Tab"),
             ("1-4", "Jump to Tab"),
             ("r", "Refresh"),
-            ("/", "Filter"),
-            ("↑↓", "Navigate"),
-        ]
+            ("d", &format!("View {}", view_hint)),
+        ];
+        
+        if matches!(state.view_mode, ViewMode::ResourceList) {
+            base_shortcuts.extend_from_slice(&[
+                ("/", "Filter"),
+                ("↑↓", "Navigate"),
+            ]);
+        }
+        
+        base_shortcuts
     };
 
     let spans: Vec<Span> = shortcuts
