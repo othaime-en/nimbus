@@ -104,7 +104,7 @@ impl AppState {
             filtered_resources: Vec::new(),
             selected_index: 0,
             filter_text: String::new(),
-            view_mode: ViewMode::ResourceList,
+            view_mode: ViewMode::Dashboard,
             input_mode: InputMode::Normal,
             loading: false,
             last_refresh: None,
@@ -128,6 +128,13 @@ impl AppState {
 
     pub fn set_tab(&mut self, tab: TabIndex) {
         self.active_tab = tab;
+    }
+
+    pub fn toggle_view_mode(&mut self) {
+        self.view_mode = match self.view_mode {
+            ViewMode::Dashboard => ViewMode::ResourceList,
+            ViewMode::ResourceList => ViewMode::Dashboard,
+        };
     }
 
     pub fn quit(&mut self) {
@@ -334,7 +341,7 @@ mod tests {
         assert_eq!(state.active_tab, TabIndex::AWS);
         assert!(!state.should_quit);
         assert!(!state.loading);
-        assert_eq!(state.view_mode, ViewMode::ResourceList);
+        assert_eq!(state.view_mode, ViewMode::Dashboard);
         assert_eq!(state.input_mode, InputMode::Normal);
     }
 
@@ -357,6 +364,18 @@ mod tests {
         let mut state = AppState::new();
         state.set_tab(TabIndex::Azure);
         assert_eq!(state.active_tab, TabIndex::Azure);
+    }
+
+    #[test]
+    fn test_app_state_toggle_view_mode() {
+        let mut state = AppState::new();
+        assert_eq!(state.view_mode, ViewMode::Dashboard);
+        
+        state.toggle_view_mode();
+        assert_eq!(state.view_mode, ViewMode::ResourceList);
+        
+        state.toggle_view_mode();
+        assert_eq!(state.view_mode, ViewMode::Dashboard);
     }
 
     #[test]

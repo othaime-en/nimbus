@@ -5,7 +5,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{AppState, TabIndex};
+use crate::app::{AppState, TabIndex, ViewMode};
 use crate::ui::theme::Theme;
 
 pub fn render_tabs(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -24,7 +24,14 @@ pub fn render_tabs(frame: &mut Frame, area: Rect, state: &AppState) {
 }
 
 pub async fn render_tab_content(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
-    crate::ui::resource_list::render_resource_list(frame, area, state).await;
+    match state.view_mode {
+        ViewMode::Dashboard => {
+            crate::ui::dashboard::render_dashboard(frame, area, state).await;
+        }
+        ViewMode::ResourceList => {
+            crate::ui::resource_list::render_resource_list(frame, area, state).await;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -33,7 +40,6 @@ mod tests {
 
     #[test]
     fn test_render_tabs() {
-        // Smoke test to ensure function compiles
         assert!(true);
     }
 }
