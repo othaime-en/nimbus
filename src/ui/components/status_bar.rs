@@ -27,8 +27,13 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
             ("Tab", "Next Tab"),
             ("1-4", "Jump to Tab"),
             ("r", "Refresh"),
-            ("d", &format!("View {}", view_hint)),
         ];
+        
+        if view_hint == "List" {
+            base_shortcuts.push(("d", "View List"));
+        } else {
+            base_shortcuts.push(("d", "View Dashboard"));
+        }
         
         if matches!(state.view_mode, ViewMode::ResourceList) {
             base_shortcuts.extend_from_slice(&[
