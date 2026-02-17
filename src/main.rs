@@ -5,7 +5,7 @@ use crossterm::{
 };
 use log::{error, info};
 use nimbus::{
-    app::{AppState, TabIndex},
+    app::{AppState, TabIndex, ViewMode},
     core::CloudProvider,
     providers::AWSProvider,
     ui, NimbusConfig, Result,
@@ -167,8 +167,13 @@ async fn run_app(
                             KeyCode::Char('2') => app_state.set_tab(TabIndex::GCP),
                             KeyCode::Char('3') => app_state.set_tab(TabIndex::Azure),
                             KeyCode::Char('4') => app_state.set_tab(TabIndex::AllClouds),
+                            KeyCode::Char('d') => {
+                                app_state.toggle_view_mode();
+                            }
                             KeyCode::Char('/') => {
-                                app_state.enter_filter_mode();
+                                if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                    app_state.enter_filter_mode();
+                                }
                             }
                             KeyCode::Esc => {
                                 if !app_state.filter_text.is_empty() {
@@ -183,8 +188,16 @@ async fn run_app(
                                     info!("Resources refreshed successfully");
                                 }
                             }
-                            KeyCode::Up => app_state.prev_resource(),
-                            KeyCode::Down => app_state.next_resource(),
+                            KeyCode::Up => {
+                                if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                    app_state.prev_resource();
+                                }
+                            }
+                            KeyCode::Down => {
+                                if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                    app_state.next_resource();
+                                }
+                            }
                             _ => {}
                         }
                     }
