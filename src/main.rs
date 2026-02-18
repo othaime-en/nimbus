@@ -143,33 +143,52 @@ async fn run_app(
                         match key.code {
                             KeyCode::Enter => {
                                 app_state.cancel_confirmation();
-                                if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                
+                                let action_info = if let Some(resource_idx) = app_state.get_selected_resource_index() {
                                     let resources = app_state.resources.read().await;
                                     if let Some(resource) = resources.get(resource_idx) {
                                         let actions = resource.supported_actions();
                                         if let Some(action) = actions.get(app_state.selected_action) {
-                                            info!("Executing action {:?} on resource {}", action, resource.id());
-                                            
-                                            for provider in &app_state.providers {
-                                                let provider = provider.read().await;
-                                                if provider.provider_type() == resource.provider() {
-                                                    match provider.execute_action(resource.id(), *action).await {
-                                                        Ok(_) => {
-                                                            info!("Action executed successfully");
-                                                            drop(resources);
-                                                            drop(provider);
-                                                            if let Err(e) = app_state.refresh_resources().await {
-                                                                error!("Failed to refresh after action: {}", e);
-                                                            }
-                                                        }
-                                                        Err(e) => {
-                                                            error!("Action failed: {}", e);
-                                                            app_state.set_error(format!("Action failed: {}", e));
-                                                        }
-                                                    }
-                                                    break;
-                                                }
+                                            Some((
+                                                resource.id().to_string(),
+                                                resource.provider(),
+                                                *action
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                };
+                                
+                                if let Some((resource_id, resource_provider, action)) = action_info {
+                                    info!("Executing action {:?} on resource {}", action, resource_id);
+                                    
+                                    let mut action_result = None;
+                                    for provider in &app_state.providers {
+                                        let provider = provider.read().await;
+                                        if provider.provider_type() == resource_provider {
+                                            action_result = Some(provider.execute_action(&resource_id, action).await);
+                                            break;
+                                        }
+                                    }
+                                    
+                                    match action_result {
+                                        Some(Ok(_)) => {
+                                            info!("Action executed successfully");
+                                            if let Err(e) = app_state.refresh_resources().await {
+                                                error!("Failed to refresh after action: {}", e);
                                             }
+                                        }
+                                        Some(Err(e)) => {
+                                            error!("Action failed: {}", e);
+                                            app_state.set_error(format!("Action failed: {}", e));
+                                        }
+                                        None => {
+                                            error!("No provider found for resource");
                                         }
                                     }
                                 }
@@ -258,58 +277,92 @@ async fn run_app(
                                         app_state.exit_detail_view();
                                     }
                                     KeyCode::Up => {
-                                        let resources = app_state.resources.read().await;
-                                        if let Some(resource_idx) = app_state.get_selected_resource_index() {
-                                            if let Some(resource) = resources.get(resource_idx) {
-                                                let action_count = resource.supported_actions().len();
-                                                app_state.prev_action(action_count);
+                                        let action_count = {
+                                            let resources = app_state.resources.read().await;
+                                            if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                                if let Some(resource) = resources.get(resource_idx) {
+                                                    resource.supported_actions().len()
+                                                } else {
+                                                    0
+                                                }
+                                            } else {
+                                                0
                                             }
-                                        }
+                                        };
+                                        app_state.prev_action(action_count);
                                     }
                                     KeyCode::Down => {
-                                        let resources = app_state.resources.read().await;
-                                        if let Some(resource_idx) = app_state.get_selected_resource_index() {
-                                            if let Some(resource) = resources.get(resource_idx) {
-                                                let action_count = resource.supported_actions().len();
-                                                app_state.next_action(action_count);
+                                        let action_count = {
+                                            let resources = app_state.resources.read().await;
+                                            if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                                if let Some(resource) = resources.get(resource_idx) {
+                                                    resource.supported_actions().len()
+                                                } else {
+                                                    0
+                                                }
+                                            } else {
+                                                0
                                             }
-                                        }
+                                        };
+                                        app_state.next_action(action_count);
                                     }
                                     KeyCode::Enter => {
-                                        let resources = app_state.resources.read().await;
-                                        if let Some(resource_idx) = app_state.get_selected_resource_index() {
-                                            if let Some(resource) = resources.get(resource_idx) {
-                                                let actions = resource.supported_actions();
-                                                if let Some(action) = actions.get(app_state.selected_action) {
-                                                    if action.is_destructive() {
-                                                        let message = format!(
-                                                            "Are you sure you want to {} '{}'?\n\nThis action cannot be undone.",
-                                                            action.as_str().to_lowercase(),
-                                                            resource.name()
-                                                        );
-                                                        app_state.show_action_confirmation(message);
+                                        let action_info = {
+                                            let resources = app_state.resources.read().await;
+                                            if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                                if let Some(resource) = resources.get(resource_idx) {
+                                                    let actions = resource.supported_actions();
+                                                    if let Some(action) = actions.get(app_state.selected_action) {
+                                                        Some((
+                                                            resource.id().to_string(),
+                                                            resource.name().to_string(),
+                                                            resource.provider(),
+                                                            *action
+                                                        ))
                                                     } else {
-                                                        info!("Executing non-destructive action {:?}", action);
-                                                        for provider in &app_state.providers {
-                                                            let provider = provider.read().await;
-                                                            if provider.provider_type() == resource.provider() {
-                                                                match provider.execute_action(resource.id(), *action).await {
-                                                                    Ok(_) => {
-                                                                        info!("Action executed successfully");
-                                                                        drop(resources);
-                                                                        drop(provider);
-                                                                        if let Err(e) = app_state.refresh_resources().await {
-                                                                            error!("Failed to refresh: {}", e);
-                                                                        }
-                                                                    }
-                                                                    Err(e) => {
-                                                                        error!("Action failed: {}", e);
-                                                                        app_state.set_error(format!("Action failed: {}", e));
-                                                                    }
-                                                                }
-                                                                break;
-                                                            }
+                                                        None
+                                                    }
+                                                } else {
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        
+                                        if let Some((resource_id, resource_name, resource_provider, action)) = action_info {
+                                            if action.is_destructive() {
+                                                let message = format!(
+                                                    "Are you sure you want to {} '{}'?\n\nThis action cannot be undone.",
+                                                    action.as_str().to_lowercase(),
+                                                    resource_name
+                                                );
+                                                app_state.show_action_confirmation(message);
+                                            } else {
+                                                info!("Executing non-destructive action {:?}", action);
+                                                
+                                                let mut action_result = None;
+                                                for provider in &app_state.providers {
+                                                    let provider = provider.read().await;
+                                                    if provider.provider_type() == resource_provider {
+                                                        action_result = Some(provider.execute_action(&resource_id, action).await);
+                                                        break;
+                                                    }
+                                                }
+                                                
+                                                match action_result {
+                                                    Some(Ok(_)) => {
+                                                        info!("Action executed successfully");
+                                                        if let Err(e) = app_state.refresh_resources().await {
+                                                            error!("Failed to refresh: {}", e);
                                                         }
+                                                    }
+                                                    Some(Err(e)) => {
+                                                        error!("Action failed: {}", e);
+                                                        app_state.set_error(format!("Action failed: {}", e));
+                                                    }
+                                                    None => {
+                                                        error!("No provider found for resource");
                                                     }
                                                 }
                                             }
