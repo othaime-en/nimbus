@@ -1,13 +1,13 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph, Row, Table, Wrap},
     Frame,
 };
 
 use crate::app::AppState;
-use crate::core::{Action, CloudResource};
+use crate::core::CloudResource;
 use crate::ui::theme::Theme;
 
 pub async fn render_detail_view(frame: &mut Frame<'_>, area: Rect, state: &AppState) {
