@@ -120,11 +120,22 @@ async fn run_tui(
     Ok(())
 }
 
+// CHANGES: Added message auto-clear tracking and improved action feedback
 async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app_state: &mut AppState,
 ) -> Result<()> {
+    let mut last_message_time: Option<std::time::Instant> = None;
+    const MESSAGE_DISPLAY_DURATION: Duration = Duration::from_secs(3);
+
     loop {
+        if let Some(msg_time) = last_message_time {
+            if msg_time.elapsed() > MESSAGE_DISPLAY_DURATION {
+                app_state.clear_success();
+                last_message_time = None;
+            }
+        }
+
         terminal.draw(|f| {
             let future = ui::render(f, app_state);
             tokio::task::block_in_place(|| {
@@ -151,6 +162,7 @@ async fn run_app(
                                         if let Some(action) = actions.get(app_state.selected_action) {
                                             Some((
                                                 resource.id().to_string(),
+                                                resource.name().to_string(),
                                                 resource.provider(),
                                                 *action
                                             ))
@@ -164,8 +176,9 @@ async fn run_app(
                                     None
                                 };
                                 
-                                if let Some((resource_id, resource_provider, action)) = action_info {
+                                if let Some((resource_id, resource_name, resource_provider, action)) = action_info {
                                     info!("Executing action {:?} on resource {}", action, resource_id);
+                                    app_state.start_loading();
                                     
                                     let mut action_result = None;
                                     for provider in &app_state.providers {
@@ -179,16 +192,31 @@ async fn run_app(
                                     match action_result {
                                         Some(Ok(_)) => {
                                             info!("Action executed successfully");
+                                            let success_msg = format!(
+                                                "Successfully {} '{}'",
+                                                match action {
+                                                    nimbus::core::Action::Start => "started",
+                                                    nimbus::core::Action::Stop => "stopped",
+                                                    nimbus::core::Action::Restart => "restarted",
+                                                    nimbus::core::Action::Terminate => "terminated",
+                                                    _ => "completed action on",
+                                                },
+                                                resource_name
+                                            );
+                                            app_state.set_success(success_msg);
+                                            last_message_time = Some(std::time::Instant::now());
+                                            
                                             if let Err(e) = app_state.refresh_resources().await {
                                                 error!("Failed to refresh after action: {}", e);
                                             }
                                         }
                                         Some(Err(e)) => {
                                             error!("Action failed: {}", e);
-                                            app_state.set_error(format!("Action failed: {}", e));
+                                            app_state.set_error(format!("{}", e));
                                         }
                                         None => {
                                             error!("No provider found for resource");
+                                            app_state.set_error("No provider found for this resource".to_string());
                                         }
                                     }
                                 }
@@ -233,6 +261,7 @@ async fn run_app(
                                     KeyCode::Char('4') => app_state.set_tab(TabIndex::AllClouds),
                                     KeyCode::Char('d') => {
                                         app_state.toggle_view_mode();
+                                        app_state.clear_messages();
                                     }
                                     KeyCode::Char('/') => {
                                         if matches!(app_state.view_mode, ViewMode::ResourceList) {
@@ -242,14 +271,19 @@ async fn run_app(
                                     KeyCode::Esc => {
                                         if !app_state.filter_text.is_empty() {
                                             app_state.clear_filter();
+                                        } else {
+                                            app_state.clear_messages();
                                         }
                                     }
                                     KeyCode::Char('r') => {
                                         info!("Refreshing resources...");
+                                        app_state.clear_messages();
                                         if let Err(e) = app_state.refresh_resources().await {
                                             error!("Refresh failed: {}", e);
                                         } else {
                                             info!("Resources refreshed successfully");
+                                            app_state.set_success("Resources refreshed successfully".to_string());
+                                            last_message_time = Some(std::time::Instant::now());
                                         }
                                     }
                                     KeyCode::Up => {
@@ -264,6 +298,7 @@ async fn run_app(
                                     }
                                     KeyCode::Enter => {
                                         if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                            app_state.clear_messages();
                                             app_state.enter_detail_view();
                                         }
                                     }
@@ -274,6 +309,7 @@ async fn run_app(
                                 match key.code {
                                     KeyCode::Char('q') => app_state.quit(),
                                     KeyCode::Esc => {
+                                        app_state.clear_messages();
                                         app_state.exit_detail_view();
                                     }
                                     KeyCode::Up => {
@@ -333,13 +369,14 @@ async fn run_app(
                                         if let Some((resource_id, resource_name, resource_provider, action)) = action_info {
                                             if action.is_destructive() {
                                                 let message = format!(
-                                                    "Are you sure you want to {} '{}'?\n\nThis action cannot be undone.",
+                                                    "Are you sure you want to {} '{}'?\n\nThis action cannot be undone.\n\nPress Enter to confirm or ESC to cancel.",
                                                     action.as_str().to_lowercase(),
                                                     resource_name
                                                 );
                                                 app_state.show_action_confirmation(message);
                                             } else {
                                                 info!("Executing non-destructive action {:?}", action);
+                                                app_state.start_loading();
                                                 
                                                 let mut action_result = None;
                                                 for provider in &app_state.providers {
@@ -353,16 +390,30 @@ async fn run_app(
                                                 match action_result {
                                                     Some(Ok(_)) => {
                                                         info!("Action executed successfully");
+                                                        let success_msg = format!(
+                                                            "Successfully {} '{}'",
+                                                            match action {
+                                                                nimbus::core::Action::Start => "started",
+                                                                nimbus::core::Action::Stop => "stopped",
+                                                                nimbus::core::Action::Restart => "restarted",
+                                                                _ => "completed action on",
+                                                            },
+                                                            resource_name
+                                                        );
+                                                        app_state.set_success(success_msg);
+                                                        last_message_time = Some(std::time::Instant::now());
+                                                        
                                                         if let Err(e) = app_state.refresh_resources().await {
                                                             error!("Failed to refresh: {}", e);
                                                         }
                                                     }
                                                     Some(Err(e)) => {
                                                         error!("Action failed: {}", e);
-                                                        app_state.set_error(format!("Action failed: {}", e));
+                                                        app_state.set_error(format!("{}", e));
                                                     }
                                                     None => {
                                                         error!("No provider found for resource");
+                                                        app_state.set_error("No provider found for this resource".to_string());
                                                     }
                                                 }
                                             }
