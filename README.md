@@ -54,10 +54,6 @@ Press `q` to quit.
 - Rust 1.75 or later
 - Valid AWS credentials (via AWS CLI configuration or environment variables)
 
-## Current Status
-
-Currently supports AWS EC2 instances with filtering and navigation. Additional AWS resources (RDS, S3, ELB, Route53) and GCP/Azure support coming soon.
-
 ## License
 
 MIT
