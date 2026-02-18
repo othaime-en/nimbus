@@ -139,6 +139,68 @@ async fn run_app(
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
+                    if app_state.show_confirmation {
+                        match key.code {
+                            KeyCode::Enter => {
+                                app_state.cancel_confirmation();
+                                
+                                let action_info = if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                    let resources = app_state.resources.read().await;
+                                    if let Some(resource) = resources.get(resource_idx) {
+                                        let actions = resource.supported_actions();
+                                        if let Some(action) = actions.get(app_state.selected_action) {
+                                            Some((
+                                                resource.id().to_string(),
+                                                resource.provider(),
+                                                *action
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                };
+                                
+                                if let Some((resource_id, resource_provider, action)) = action_info {
+                                    info!("Executing action {:?} on resource {}", action, resource_id);
+                                    
+                                    let mut action_result = None;
+                                    for provider in &app_state.providers {
+                                        let provider = provider.read().await;
+                                        if provider.provider_type() == resource_provider {
+                                            action_result = Some(provider.execute_action(&resource_id, action).await);
+                                            break;
+                                        }
+                                    }
+                                    
+                                    match action_result {
+                                        Some(Ok(_)) => {
+                                            info!("Action executed successfully");
+                                            if let Err(e) = app_state.refresh_resources().await {
+                                                error!("Failed to refresh after action: {}", e);
+                                            }
+                                        }
+                                        Some(Err(e)) => {
+                                            error!("Action failed: {}", e);
+                                            app_state.set_error(format!("Action failed: {}", e));
+                                        }
+                                        None => {
+                                            error!("No provider found for resource");
+                                        }
+                                    }
+                                }
+                            }
+                            KeyCode::Esc => {
+                                app_state.cancel_confirmation();
+                            }
+                            _ => {}
+                        }
+                        continue;
+                    }
+
                     if app_state.is_filtering() {
                         match key.code {
                             KeyCode::Char(c) => {
@@ -159,46 +221,156 @@ async fn run_app(
                             _ => {}
                         }
                     } else {
-                        match key.code {
-                            KeyCode::Char('q') => app_state.quit(),
-                            KeyCode::Tab => app_state.next_tab(),
-                            KeyCode::BackTab => app_state.prev_tab(),
-                            KeyCode::Char('1') => app_state.set_tab(TabIndex::AWS),
-                            KeyCode::Char('2') => app_state.set_tab(TabIndex::GCP),
-                            KeyCode::Char('3') => app_state.set_tab(TabIndex::Azure),
-                            KeyCode::Char('4') => app_state.set_tab(TabIndex::AllClouds),
-                            KeyCode::Char('d') => {
-                                app_state.toggle_view_mode();
-                            }
-                            KeyCode::Char('/') => {
-                                if matches!(app_state.view_mode, ViewMode::ResourceList) {
-                                    app_state.enter_filter_mode();
+                        match app_state.view_mode {
+                            ViewMode::Dashboard | ViewMode::ResourceList => {
+                                match key.code {
+                                    KeyCode::Char('q') => app_state.quit(),
+                                    KeyCode::Tab => app_state.next_tab(),
+                                    KeyCode::BackTab => app_state.prev_tab(),
+                                    KeyCode::Char('1') => app_state.set_tab(TabIndex::AWS),
+                                    KeyCode::Char('2') => app_state.set_tab(TabIndex::GCP),
+                                    KeyCode::Char('3') => app_state.set_tab(TabIndex::Azure),
+                                    KeyCode::Char('4') => app_state.set_tab(TabIndex::AllClouds),
+                                    KeyCode::Char('d') => {
+                                        app_state.toggle_view_mode();
+                                    }
+                                    KeyCode::Char('/') => {
+                                        if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                            app_state.enter_filter_mode();
+                                        }
+                                    }
+                                    KeyCode::Esc => {
+                                        if !app_state.filter_text.is_empty() {
+                                            app_state.clear_filter();
+                                        }
+                                    }
+                                    KeyCode::Char('r') => {
+                                        info!("Refreshing resources...");
+                                        if let Err(e) = app_state.refresh_resources().await {
+                                            error!("Refresh failed: {}", e);
+                                        } else {
+                                            info!("Resources refreshed successfully");
+                                        }
+                                    }
+                                    KeyCode::Up => {
+                                        if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                            app_state.prev_resource();
+                                        }
+                                    }
+                                    KeyCode::Down => {
+                                        if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                            app_state.next_resource();
+                                        }
+                                    }
+                                    KeyCode::Enter => {
+                                        if matches!(app_state.view_mode, ViewMode::ResourceList) {
+                                            app_state.enter_detail_view();
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
-                            KeyCode::Esc => {
-                                if !app_state.filter_text.is_empty() {
-                                    app_state.clear_filter();
+                            ViewMode::ResourceDetail => {
+                                match key.code {
+                                    KeyCode::Char('q') => app_state.quit(),
+                                    KeyCode::Esc => {
+                                        app_state.exit_detail_view();
+                                    }
+                                    KeyCode::Up => {
+                                        let action_count = {
+                                            let resources = app_state.resources.read().await;
+                                            if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                                if let Some(resource) = resources.get(resource_idx) {
+                                                    resource.supported_actions().len()
+                                                } else {
+                                                    0
+                                                }
+                                            } else {
+                                                0
+                                            }
+                                        };
+                                        app_state.prev_action(action_count);
+                                    }
+                                    KeyCode::Down => {
+                                        let action_count = {
+                                            let resources = app_state.resources.read().await;
+                                            if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                                if let Some(resource) = resources.get(resource_idx) {
+                                                    resource.supported_actions().len()
+                                                } else {
+                                                    0
+                                                }
+                                            } else {
+                                                0
+                                            }
+                                        };
+                                        app_state.next_action(action_count);
+                                    }
+                                    KeyCode::Enter => {
+                                        let action_info = {
+                                            let resources = app_state.resources.read().await;
+                                            if let Some(resource_idx) = app_state.get_selected_resource_index() {
+                                                if let Some(resource) = resources.get(resource_idx) {
+                                                    let actions = resource.supported_actions();
+                                                    if let Some(action) = actions.get(app_state.selected_action) {
+                                                        Some((
+                                                            resource.id().to_string(),
+                                                            resource.name().to_string(),
+                                                            resource.provider(),
+                                                            *action
+                                                        ))
+                                                    } else {
+                                                        None
+                                                    }
+                                                } else {
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        };
+                                        
+                                        if let Some((resource_id, resource_name, resource_provider, action)) = action_info {
+                                            if action.is_destructive() {
+                                                let message = format!(
+                                                    "Are you sure you want to {} '{}'?\n\nThis action cannot be undone.",
+                                                    action.as_str().to_lowercase(),
+                                                    resource_name
+                                                );
+                                                app_state.show_action_confirmation(message);
+                                            } else {
+                                                info!("Executing non-destructive action {:?}", action);
+                                                
+                                                let mut action_result = None;
+                                                for provider in &app_state.providers {
+                                                    let provider = provider.read().await;
+                                                    if provider.provider_type() == resource_provider {
+                                                        action_result = Some(provider.execute_action(&resource_id, action).await);
+                                                        break;
+                                                    }
+                                                }
+                                                
+                                                match action_result {
+                                                    Some(Ok(_)) => {
+                                                        info!("Action executed successfully");
+                                                        if let Err(e) = app_state.refresh_resources().await {
+                                                            error!("Failed to refresh: {}", e);
+                                                        }
+                                                    }
+                                                    Some(Err(e)) => {
+                                                        error!("Action failed: {}", e);
+                                                        app_state.set_error(format!("Action failed: {}", e));
+                                                    }
+                                                    None => {
+                                                        error!("No provider found for resource");
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    _ => {}
                                 }
                             }
-                            KeyCode::Char('r') => {
-                                info!("Refreshing resources...");
-                                if let Err(e) = app_state.refresh_resources().await {
-                                    error!("Refresh failed: {}", e);
-                                } else {
-                                    info!("Resources refreshed successfully");
-                                }
-                            }
-                            KeyCode::Up => {
-                                if matches!(app_state.view_mode, ViewMode::ResourceList) {
-                                    app_state.prev_resource();
-                                }
-                            }
-                            KeyCode::Down => {
-                                if matches!(app_state.view_mode, ViewMode::ResourceList) {
-                                    app_state.next_resource();
-                                }
-                            }
-                            _ => {}
                         }
                     }
                 }

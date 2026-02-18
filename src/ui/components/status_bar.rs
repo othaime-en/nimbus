@@ -16,33 +16,42 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
             ("Backspace", "Delete"),
             ("Enter", "Apply"),
         ]
+    } else if state.show_confirmation {
+        vec![
+            ("Enter", "Confirm"),
+            ("ESC", "Cancel"),
+        ]
     } else {
-        let view_hint = match state.view_mode {
-            ViewMode::Dashboard => "List",
-            ViewMode::ResourceList => "Dashboard",
-        };
-        
-        let mut base_shortcuts = vec![
-            ("q", "Quit"),
-            ("Tab", "Next Tab"),
-            ("1-4", "Jump to Tab"),
-            ("r", "Refresh"),
-        ];
-        
-        if view_hint == "List" {
-            base_shortcuts.push(("d", "View List"));
-        } else {
-            base_shortcuts.push(("d", "View Dashboard"));
+        match state.view_mode {
+            ViewMode::Dashboard => {
+                vec![
+                    ("q", "Quit"),
+                    ("Tab", "Next Tab"),
+                    ("1-4", "Jump to Tab"),
+                    ("r", "Refresh"),
+                    ("d", "View List"),
+                ]
+            }
+            ViewMode::ResourceList => {
+                vec![
+                    ("q", "Quit"),
+                    ("Tab", "Next Tab"),
+                    ("r", "Refresh"),
+                    ("d", "Dashboard"),
+                    ("/", "Filter"),
+                    ("↑↓", "Navigate"),
+                    ("Enter", "Details"),
+                ]
+            }
+            ViewMode::ResourceDetail => {
+                vec![
+                    ("q", "Quit"),
+                    ("↑↓", "Select Action"),
+                    ("Enter", "Execute"),
+                    ("ESC", "Back to List"),
+                ]
+            }
         }
-        
-        if matches!(state.view_mode, ViewMode::ResourceList) {
-            base_shortcuts.extend_from_slice(&[
-                ("/", "Filter"),
-                ("↑↓", "Navigate"),
-            ]);
-        }
-        
-        base_shortcuts
     };
 
     let spans: Vec<Span> = shortcuts

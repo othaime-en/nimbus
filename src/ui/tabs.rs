@@ -31,6 +31,9 @@ pub async fn render_tab_content(frame: &mut Frame<'_>, area: Rect, state: &AppSt
         ViewMode::ResourceList => {
             crate::ui::resource_list::render_resource_list(frame, area, state).await;
         }
+        ViewMode::ResourceDetail => {
+            crate::ui::detail::render_detail_view(frame, area, state).await;
+        }
     }
 }
 
