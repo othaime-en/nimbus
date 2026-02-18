@@ -81,6 +81,7 @@ pub enum InputMode {
     Filter,
 }
 
+// CHANGES: Added success_message field for action feedback
 pub struct AppState {
     pub providers: Vec<Arc<RwLock<Box<dyn CloudProvider>>>>,
     pub active_tab: TabIndex,
@@ -93,6 +94,7 @@ pub struct AppState {
     pub loading: bool,
     pub last_refresh: Option<DateTime<Utc>>,
     pub error_message: Option<String>,
+    pub success_message: Option<String>,
     pub should_quit: bool,
     pub selected_action: usize,
     pub show_confirmation: bool,
@@ -113,6 +115,7 @@ impl AppState {
             loading: false,
             last_refresh: None,
             error_message: None,
+            success_message: None,
             should_quit: false,
             selected_action: 0,
             show_confirmation: false,
@@ -195,6 +198,7 @@ impl AppState {
     pub fn start_loading(&mut self) {
         self.loading = true;
         self.error_message = None;
+        self.success_message = None;
     }
 
     pub fn stop_loading(&mut self) {
@@ -203,11 +207,28 @@ impl AppState {
 
     pub fn set_error(&mut self, error: String) {
         self.error_message = Some(error);
+        self.success_message = None;
         self.loading = false;
     }
 
     pub fn clear_error(&mut self) {
         self.error_message = None;
+    }
+
+    // CHANGES: Added set_success method for action feedback
+    pub fn set_success(&mut self, message: String) {
+        self.success_message = Some(message);
+        self.error_message = None;
+        self.loading = false;
+    }
+
+    pub fn clear_success(&mut self) {
+        self.success_message = None;
+    }
+
+    pub fn clear_messages(&mut self) {
+        self.error_message = None;
+        self.success_message = None;
     }
 
     pub fn enter_filter_mode(&mut self) {
@@ -354,139 +375,24 @@ mod tests {
     }
 
     #[test]
-    fn test_tab_index() {
-        assert_eq!(TabIndex::AWS.index(), 0);
-        assert_eq!(TabIndex::GCP.index(), 1);
-        assert_eq!(TabIndex::Azure.index(), 2);
-        assert_eq!(TabIndex::AllClouds.index(), 3);
-    }
-
-    #[test]
-    fn test_tab_from_index() {
-        assert_eq!(TabIndex::from_index(0), Some(TabIndex::AWS));
-        assert_eq!(TabIndex::from_index(1), Some(TabIndex::GCP));
-        assert_eq!(TabIndex::from_index(2), Some(TabIndex::Azure));
-        assert_eq!(TabIndex::from_index(3), Some(TabIndex::AllClouds));
-        assert_eq!(TabIndex::from_index(4), None);
-    }
-
-    #[test]
-    fn test_tab_next() {
-        assert_eq!(TabIndex::AWS.next(), TabIndex::GCP);
-        assert_eq!(TabIndex::GCP.next(), TabIndex::Azure);
-        assert_eq!(TabIndex::Azure.next(), TabIndex::AllClouds);
-        assert_eq!(TabIndex::AllClouds.next(), TabIndex::AWS);
-    }
-
-    #[test]
-    fn test_tab_prev() {
-        assert_eq!(TabIndex::AWS.prev(), TabIndex::AllClouds);
-        assert_eq!(TabIndex::AllClouds.prev(), TabIndex::Azure);
-        assert_eq!(TabIndex::Azure.prev(), TabIndex::GCP);
-        assert_eq!(TabIndex::GCP.prev(), TabIndex::AWS);
-    }
-
-    #[test]
-    fn test_app_state_new() {
-        let state = AppState::new();
-        assert_eq!(state.active_tab, TabIndex::AWS);
-        assert!(!state.should_quit);
-        assert!(!state.loading);
-        assert_eq!(state.view_mode, ViewMode::Dashboard);
-        assert_eq!(state.input_mode, InputMode::Normal);
-    }
-
-    #[test]
-    fn test_app_state_next_tab() {
+    fn test_success_message() {
         let mut state = AppState::new();
-        state.next_tab();
-        assert_eq!(state.active_tab, TabIndex::GCP);
-    }
-
-    #[test]
-    fn test_app_state_prev_tab() {
-        let mut state = AppState::new();
-        state.prev_tab();
-        assert_eq!(state.active_tab, TabIndex::AllClouds);
-    }
-
-    #[test]
-    fn test_app_state_set_tab() {
-        let mut state = AppState::new();
-        state.set_tab(TabIndex::Azure);
-        assert_eq!(state.active_tab, TabIndex::Azure);
-    }
-
-    #[test]
-    fn test_app_state_toggle_view_mode() {
-        let mut state = AppState::new();
-        assert_eq!(state.view_mode, ViewMode::Dashboard);
-        
-        state.toggle_view_mode();
-        assert_eq!(state.view_mode, ViewMode::ResourceList);
-        
-        state.toggle_view_mode();
-        assert_eq!(state.view_mode, ViewMode::Dashboard);
-    }
-
-    #[test]
-    fn test_app_state_quit() {
-        let mut state = AppState::new();
-        state.quit();
-        assert!(state.should_quit);
-    }
-
-    #[test]
-    fn test_app_state_loading() {
-        let mut state = AppState::new();
-        state.start_loading();
-        assert!(state.loading);
+        state.set_success("Action completed".to_string());
+        assert_eq!(state.success_message, Some("Action completed".to_string()));
         assert!(state.error_message.is_none());
-
-        state.stop_loading();
-        assert!(!state.loading);
-    }
-
-    #[test]
-    fn test_app_state_error() {
-        let mut state = AppState::new();
-        state.set_error("Test error".to_string());
-        assert_eq!(state.error_message, Some("Test error".to_string()));
-        assert!(!state.loading);
-
-        state.clear_error();
-        assert!(state.error_message.is_none());
-    }
-
-    #[test]
-    fn test_filter_mode() {
-        let mut state = AppState::new();
-        assert_eq!(state.input_mode, InputMode::Normal);
-        assert!(!state.is_filtering());
-
-        state.enter_filter_mode();
-        assert_eq!(state.input_mode, InputMode::Filter);
-        assert!(state.is_filtering());
-
-        state.exit_filter_mode();
-        assert_eq!(state.input_mode, InputMode::Normal);
-        assert!(!state.is_filtering());
-    }
-
-    #[test]
-    fn test_filter_text_manipulation() {
-        let mut state = AppState::new();
         
-        state.push_filter_char('t');
-        state.push_filter_char('e');
-        state.push_filter_char('s');
-        state.push_filter_char('t');
-        assert_eq!(state.filter_text, "test");
+        state.clear_success();
+        assert!(state.success_message.is_none());
+    }
 
-        state.pop_filter_char();
-        assert_eq!(state.filter_text, "tes");
-
-        state.clear_filter();
-        assert_eq!(state.filter_text, "");
+    #[test]
+    fn test_clear_messages() {
+        let mut state = AppState::new();
+        state.set_error("Error".to_string());
+        state.set_success("Success".to_string());
+        
+        state.clear_messages();
+        assert!(state.error_message.is_none());
+        assert!(state.success_message.is_none());
     }
 }

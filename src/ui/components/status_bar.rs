@@ -8,7 +8,30 @@ use ratatui::{
 use crate::app::{AppState, ViewMode};
 use crate::ui::theme::Theme;
 
+// enhanced status bar to show success/error messages
 pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
+    if let Some(ref success) = state.success_message {
+        let success_line = Line::from(vec![
+            Span::styled("✓ ", Theme::success()),
+            Span::styled(success, Theme::success()),
+            Span::raw("  "),
+            Span::styled("[Will auto-clear]", Theme::help_text()),
+        ]);
+        let status_bar = Paragraph::new(success_line).style(Theme::status_bar());
+        frame.render_widget(status_bar, area);
+        return;
+    }
+    
+    if let Some(ref error) = state.error_message {
+        let error_line = Line::from(vec![
+            Span::styled("✗ ", Theme::error()),
+            Span::styled(error, Theme::error()),
+        ]);
+        let status_bar = Paragraph::new(error_line).style(Theme::status_bar());
+        frame.render_widget(status_bar, area);
+        return;
+    }
+
     let shortcuts = if state.is_filtering() {
         vec![
             ("Type", "to filter"),
