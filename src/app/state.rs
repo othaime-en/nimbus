@@ -72,6 +72,7 @@ impl TabIndex {
 pub enum ViewMode {
     Dashboard,
     ResourceList,
+    ResourceDetail,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +94,9 @@ pub struct AppState {
     pub last_refresh: Option<DateTime<Utc>>,
     pub error_message: Option<String>,
     pub should_quit: bool,
+    pub selected_action: usize,
+    pub show_confirmation: bool,
+    pub confirmation_message: String,
 }
 
 impl AppState {
@@ -110,6 +114,9 @@ impl AppState {
             last_refresh: None,
             error_message: None,
             should_quit: false,
+            selected_action: 0,
+            show_confirmation: false,
+            confirmation_message: String::new(),
         }
     }
 
@@ -134,7 +141,51 @@ impl AppState {
         self.view_mode = match self.view_mode {
             ViewMode::Dashboard => ViewMode::ResourceList,
             ViewMode::ResourceList => ViewMode::Dashboard,
+            ViewMode::ResourceDetail => ViewMode::ResourceList,
         };
+    }
+
+    pub fn enter_detail_view(&mut self) {
+        if !self.filtered_resources.is_empty() {
+            self.view_mode = ViewMode::ResourceDetail;
+            self.selected_action = 0;
+        }
+    }
+
+    pub fn exit_detail_view(&mut self) {
+        self.view_mode = ViewMode::ResourceList;
+        self.selected_action = 0;
+        self.show_confirmation = false;
+    }
+
+    pub fn next_action(&mut self, max_actions: usize) {
+        if max_actions > 0 {
+            self.selected_action = (self.selected_action + 1) % max_actions;
+        }
+    }
+
+    pub fn prev_action(&mut self, max_actions: usize) {
+        if max_actions > 0 {
+            if self.selected_action == 0 {
+                self.selected_action = max_actions - 1;
+            } else {
+                self.selected_action -= 1;
+            }
+        }
+    }
+
+    pub fn show_action_confirmation(&mut self, message: String) {
+        self.confirmation_message = message;
+        self.show_confirmation = true;
+    }
+
+    pub fn cancel_confirmation(&mut self) {
+        self.show_confirmation = false;
+        self.confirmation_message.clear();
+    }
+
+    pub fn get_selected_resource_index(&self) -> Option<usize> {
+        self.filtered_resources.get(self.selected_index).copied()
     }
 
     pub fn quit(&mut self) {
