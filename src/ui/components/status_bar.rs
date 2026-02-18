@@ -8,7 +8,7 @@ use ratatui::{
 use crate::app::{AppState, ViewMode};
 use crate::ui::theme::Theme;
 
-// enhanced status bar to show success/error messages
+// CHANGES: Enhanced status bar to show success/error messages and last action
 pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
     if let Some(ref success) = state.success_message {
         let success_line = Line::from(vec![
@@ -77,7 +77,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         }
     };
 
-    let spans: Vec<Span> = shortcuts
+    let mut spans: Vec<Span> = shortcuts
         .iter()
         .flat_map(|(key, desc)| {
             vec![
@@ -88,6 +88,18 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
             ]
         })
         .collect();
+
+    if let Some(ref last_action) = state.last_action {
+        if let Some(ref last_time) = state.last_action_time {
+            let time_str = last_time.format("%H:%M:%S").to_string();
+            spans.push(Span::styled(" | ", Theme::help_text()));
+            spans.push(Span::styled("Last: ", Theme::help_text()));
+            spans.push(Span::styled(last_action, Theme::help_key()));
+            spans.push(Span::styled(" (", Theme::help_text()));
+            spans.push(Span::styled(time_str, Theme::help_text()));
+            spans.push(Span::styled(")", Theme::help_text()));
+        }
+    }
 
     let status_line = Line::from(spans);
     let status_bar = Paragraph::new(status_line).style(Theme::status_bar());

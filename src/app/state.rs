@@ -82,6 +82,7 @@ pub enum InputMode {
 }
 
 // CHANGES: Added success_message field for action feedback
+// CHANGES: Added last_action and last_action_time for status bar display
 pub struct AppState {
     pub providers: Vec<Arc<RwLock<Box<dyn CloudProvider>>>>,
     pub active_tab: TabIndex,
@@ -99,6 +100,8 @@ pub struct AppState {
     pub selected_action: usize,
     pub show_confirmation: bool,
     pub confirmation_message: String,
+    pub last_action: Option<String>,
+    pub last_action_time: Option<DateTime<Utc>>,
 }
 
 impl AppState {
@@ -120,6 +123,8 @@ impl AppState {
             selected_action: 0,
             show_confirmation: false,
             confirmation_message: String::new(),
+            last_action: None,
+            last_action_time: None,
         }
     }
 
@@ -229,6 +234,12 @@ impl AppState {
     pub fn clear_messages(&mut self) {
         self.error_message = None;
         self.success_message = None;
+    }
+
+    // CHANGES: Added record_action to track last action for status display
+    pub fn record_action(&mut self, action_description: String) {
+        self.last_action = Some(action_description);
+        self.last_action_time = Some(Utc::now());
     }
 
     pub fn enter_filter_mode(&mut self) {

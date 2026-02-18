@@ -11,14 +11,46 @@ use nimbus::{
     ui, NimbusConfig, Result,
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::io;
+use std::io::{self, Write};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
+fn setup_logging() -> Result<()> {
+    let log_dir = dirs::home_dir()
+        .ok_or_else(|| nimbus::NimbusError::ConfigError("Could not determine home directory".to_string()))?
+        .join(".nimbus");
+    
+    std::fs::create_dir_all(&log_dir)?;
+    
+    let log_file_path = log_dir.join("nimbus.log");
+    
+    let log_file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_file_path)?;
+
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info")
+    )
+    .target(env_logger::Target::Pipe(Box::new(log_file)))
+    .format(|buf, record| {
+        writeln!(
+            buf,
+            "{} [{}] {}",
+            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+            record.level(),
+            record.args()
+        )
+    })
+    .init();
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    setup_logging()?;
 
     info!("Nimbus - Cloud Resource Manager");
     info!("Starting application...");
@@ -203,6 +235,7 @@ async fn run_app(
                                                 },
                                                 resource_name
                                             );
+                                            app_state.record_action(success_msg.clone());
                                             app_state.set_success(success_msg);
                                             last_message_time = Some(std::time::Instant::now());
                                             
@@ -282,7 +315,9 @@ async fn run_app(
                                             error!("Refresh failed: {}", e);
                                         } else {
                                             info!("Resources refreshed successfully");
-                                            app_state.set_success("Resources refreshed successfully".to_string());
+                                            let msg = "Resources refreshed successfully".to_string();
+                                            app_state.record_action(msg.clone());
+                                            app_state.set_success(msg);
                                             last_message_time = Some(std::time::Instant::now());
                                         }
                                     }
@@ -400,6 +435,7 @@ async fn run_app(
                                                             },
                                                             resource_name
                                                         );
+                                                        app_state.record_action(success_msg.clone());
                                                         app_state.set_success(success_msg);
                                                         last_message_time = Some(std::time::Instant::now());
                                                         
