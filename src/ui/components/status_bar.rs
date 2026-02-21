@@ -8,7 +8,6 @@ use ratatui::{
 use crate::app::{AppState, ViewMode};
 use crate::ui::theme::Theme;
 
-// CHANGES: Enhanced status bar to show success/error messages and last action
 pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
     if let Some(ref success) = state.success_message {
         let success_line = Line::from(vec![
@@ -53,6 +52,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
                     ("1-4", "Jump to Tab"),
                     ("r", "Refresh"),
                     ("d", "View List"),
+                    ("c", "Clear Cache"), // CHANGES: Added cache clear shortcut
                 ]
             }
             ViewMode::ResourceList => {
@@ -64,6 +64,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
                     ("/", "Filter"),
                     ("↑↓", "Navigate"),
                     ("Enter", "Details"),
+                    ("c", "Clear Cache"), // CHANGES: Added cache clear shortcut
                 ]
             }
             ViewMode::ResourceDetail => {
@@ -88,6 +89,13 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
             ]
         })
         .collect();
+
+    // CHANGES: Added cache age display
+    if let Some(cache_age) = state.cache_age_display() {
+        spans.push(Span::styled(" | ", Theme::help_text()));
+        spans.push(Span::styled("Cache: ", Theme::help_text()));
+        spans.push(Span::styled(cache_age, Theme::cache_age()));
+    }
 
     if let Some(ref last_action) = state.last_action {
         if let Some(ref last_time) = state.last_action_time {
