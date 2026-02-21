@@ -85,6 +85,12 @@ impl Theme {
             .fg(Color::Cyan)
             .add_modifier(Modifier::BOLD)
     }
+
+    // CHANGES: Added cache_age style
+    pub fn cache_age() -> Style {
+        Style::default()
+            .fg(Color::Cyan)
+    }
 }
 
 pub fn resource_icon(resource_type: ResourceType) -> &'static str {
