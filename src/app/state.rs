@@ -81,8 +81,6 @@ pub enum InputMode {
     Filter,
 }
 
-// CHANGES: Added success_message field for action feedback
-// CHANGES: Added last_action and last_action_time for status bar display
 pub struct AppState {
     pub providers: Vec<Arc<RwLock<Box<dyn CloudProvider>>>>,
     pub active_tab: TabIndex,
@@ -102,6 +100,7 @@ pub struct AppState {
     pub confirmation_message: String,
     pub last_action: Option<String>,
     pub last_action_time: Option<DateTime<Utc>>,
+    pub cache_enabled: bool, // CHANGES: Added cache awareness
 }
 
 impl AppState {
@@ -125,12 +124,45 @@ impl AppState {
             confirmation_message: String::new(),
             last_action: None,
             last_action_time: None,
+            cache_enabled: false, // CHANGES: Initialize cache_enabled
         }
     }
 
     pub fn with_providers(mut self, providers: Vec<Arc<RwLock<Box<dyn CloudProvider>>>>) -> Self {
         self.providers = providers;
         self
+    }
+
+    // CHANGES: Added method to enable cache awareness
+    pub fn with_cache_enabled(mut self, enabled: bool) -> Self {
+        self.cache_enabled = enabled;
+        self
+    }
+
+    // CHANGES: Added method to check if using cached data
+    pub fn is_using_cache(&self) -> bool {
+        self.cache_enabled && self.last_refresh.is_some()
+    }
+
+    // CHANGES: Added method to get cache age display string
+    pub fn cache_age_display(&self) -> Option<String> {
+        if !self.cache_enabled {
+            return None;
+        }
+
+        self.last_refresh.map(|refresh_time| {
+            let age = Utc::now().signed_duration_since(refresh_time);
+            
+            if age.num_minutes() < 1 {
+                "just now".to_string()
+            } else if age.num_minutes() < 60 {
+                format!("{}m ago", age.num_minutes())
+            } else if age.num_hours() < 24 {
+                format!("{}h ago", age.num_hours())
+            } else {
+                format!("{}d ago", age.num_days())
+            }
+        })
     }
 
     pub fn next_tab(&mut self) {
@@ -220,7 +252,6 @@ impl AppState {
         self.error_message = None;
     }
 
-    // CHANGES: Added set_success method for action feedback
     pub fn set_success(&mut self, message: String) {
         self.success_message = Some(message);
         self.error_message = None;
@@ -236,7 +267,6 @@ impl AppState {
         self.success_message = None;
     }
 
-    // CHANGES: Added record_action to track last action for status display
     pub fn record_action(&mut self, action_description: String) {
         self.last_action = Some(action_description);
         self.last_action_time = Some(Utc::now());
@@ -373,6 +403,33 @@ impl Default for AppState {
     }
 }
 
+// CHANGES: Added Clone implementation to support background refresh
+impl Clone for AppState {
+    fn clone(&self) -> Self {
+        Self {
+            providers: self.providers.clone(),
+            active_tab: self.active_tab,
+            resources: Arc::clone(&self.resources),
+            filtered_resources: self.filtered_resources.clone(),
+            selected_index: self.selected_index,
+            filter_text: self.filter_text.clone(),
+            view_mode: self.view_mode,
+            input_mode: self.input_mode,
+            loading: self.loading,
+            last_refresh: self.last_refresh,
+            error_message: self.error_message.clone(),
+            success_message: self.success_message.clone(),
+            should_quit: self.should_quit,
+            selected_action: self.selected_action,
+            show_confirmation: self.show_confirmation,
+            confirmation_message: self.confirmation_message.clone(),
+            last_action: self.last_action.clone(),
+            last_action_time: self.last_action_time,
+            cache_enabled: self.cache_enabled,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -405,5 +462,31 @@ mod tests {
         state.clear_messages();
         assert!(state.error_message.is_none());
         assert!(state.success_message.is_none());
+    }
+
+    // CHANGES: Added tests for cache awareness
+    #[test]
+    fn test_cache_enabled() {
+        let state = AppState::new().with_cache_enabled(true);
+        assert!(state.cache_enabled);
+    }
+
+    #[test]
+    fn test_cache_age_display() {
+        let mut state = AppState::new().with_cache_enabled(true);
+        state.last_refresh = Some(Utc::now());
+        
+        let age = state.cache_age_display();
+        assert!(age.is_some());
+        assert_eq!(age.unwrap(), "just now");
+    }
+
+    #[test]
+    fn test_is_using_cache() {
+        let mut state = AppState::new().with_cache_enabled(true);
+        assert!(!state.is_using_cache());
+        
+        state.last_refresh = Some(Utc::now());
+        assert!(state.is_using_cache());
     }
 }
