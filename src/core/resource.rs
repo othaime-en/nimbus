@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::fmt;
+use serde::{Deserialize, Serialize}; // CHANGES: Added serde imports for serialization support
 
 /// Core trait representing any cloud resource across providers.
 /// 
@@ -62,7 +63,7 @@ pub trait CloudResource: Send + Sync {
 }
 
 /// Categories of cloud resources supported by Nimbus.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)] // CHANGES: Added Serialize, Deserialize
 pub enum ResourceType {
     /// Virtual machines, instances, compute engines
     Compute,
@@ -126,7 +127,7 @@ impl fmt::Display for ResourceType {
 }
 
 /// Supported cloud providers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)] // CHANGES: Added Serialize, Deserialize
 pub enum Provider {
     AWS,
     GCP,
