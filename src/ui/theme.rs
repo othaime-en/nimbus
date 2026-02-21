@@ -89,7 +89,7 @@ impl Theme {
     // CHANGES: Added cache_age style
     pub fn cache_age() -> Style {
         Style::default()
-            .fg(Color::Cyan)
+            .fg(Color::Yellow)
     }
 }
 
