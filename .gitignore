@@ -26,3 +26,6 @@ coverage/
 
 # Logs
 *.log
+
+# Internal dev files
+internal-dev-files/
