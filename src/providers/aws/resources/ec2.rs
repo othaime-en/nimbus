@@ -1,4 +1,6 @@
 use crate::core::{Action, CloudResource, Provider, ResourceState, ResourceType};
+use crate::error::{NimbusError, Result};
+use crate::providers::aws::client::AwsClient;
 use aws_sdk_ec2::types::Instance as Ec2Instance;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -167,6 +169,123 @@ fn estimate_ec2_cost(instance_type: &str) -> f64 {
         t if t.starts_with("c5.large") => 61.06,
         t if t.starts_with("c5.xlarge") => 122.11,
         _ => 50.0,
+    }
+}
+
+/// Executes a lifecycle action against an EC2 instance.
+///
+/// Error messages are tailored per AWS error code so the TUI can surface
+/// something more actionable than the raw SDK error string.
+pub async fn execute_action(client: &AwsClient, resource_id: &str, action: Action) -> Result<()> {
+    match action {
+        Action::Start => {
+            client
+                .ec2
+                .start_instances()
+                .instance_ids(resource_id)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("InvalidInstanceID") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("EC2 instance {} not found. It may have been terminated.", resource_id),
+                        )
+                    } else if error_msg.contains("IncorrectInstanceState") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("EC2 instance {} is not in a state where it can be started. Wait a moment and try again.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to start EC2 instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        Action::Stop => {
+            client
+                .ec2
+                .stop_instances()
+                .instance_ids(resource_id)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("InvalidInstanceID") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("EC2 instance {} not found. It may have been terminated.", resource_id),
+                        )
+                    } else if error_msg.contains("IncorrectInstanceState") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("EC2 instance {} is not in a state where it can be stopped. Wait a moment and try again.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to stop EC2 instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        Action::Restart => {
+            client
+                .ec2
+                .reboot_instances()
+                .instance_ids(resource_id)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("InvalidInstanceID") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("EC2 instance {} not found. It may have been terminated.", resource_id),
+                        )
+                    } else if error_msg.contains("IncorrectInstanceState") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("EC2 instance {} must be running to restart. Start it first.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to restart EC2 instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        Action::Terminate => {
+            client
+                .ec2
+                .terminate_instances()
+                .instance_ids(resource_id)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("InvalidInstanceID") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("EC2 instance {} not found. It may already be terminated.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to terminate EC2 instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        _ => Err(NimbusError::UnsupportedAction(action, ResourceType::Compute)),
     }
 }
 

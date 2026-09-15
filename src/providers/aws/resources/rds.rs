@@ -1,4 +1,6 @@
 use crate::core::{Action, CloudResource, Provider, ResourceState, ResourceType};
+use crate::error::{NimbusError, Result};
+use crate::providers::aws::client::AwsClient;
 use aws_sdk_rds::types::DbInstance;
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -201,6 +203,129 @@ fn estimate_rds_cost(instance_class: &str, storage_gb: Option<i32>, multi_az: bo
         total * 2.0
     } else {
         total
+    }
+}
+
+/// Executes a lifecycle action against an RDS instance.
+///
+/// Error messages are tailored per AWS error code so the TUI can surface
+/// something more actionable than the raw SDK error string.
+pub async fn execute_action(client: &AwsClient, resource_id: &str, action: Action) -> Result<()> {
+    match action {
+        Action::Start => {
+            client
+                .rds
+                .start_db_instance()
+                .db_instance_identifier(resource_id)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("DBInstanceNotFound") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} not found. It may have been deleted.", resource_id),
+                        )
+                    } else if error_msg.contains("InvalidDBInstanceState") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} is not in a state where it can be started. Wait a moment and try again.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to start RDS instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        Action::Stop => {
+            client
+                .rds
+                .stop_db_instance()
+                .db_instance_identifier(resource_id)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("DBInstanceNotFound") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} not found. It may have been deleted.", resource_id),
+                        )
+                    } else if error_msg.contains("InvalidDBInstanceState") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} is not in a state where it can be stopped. Wait a moment and try again.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to stop RDS instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        Action::Restart => {
+            client
+                .rds
+                .reboot_db_instance()
+                .db_instance_identifier(resource_id)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("DBInstanceNotFound") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} not found. It may have been deleted.", resource_id),
+                        )
+                    } else if error_msg.contains("InvalidDBInstanceState") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} must be available to restart.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to restart RDS instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        Action::Terminate => {
+            client
+                .rds
+                .delete_db_instance()
+                .db_instance_identifier(resource_id)
+                .skip_final_snapshot(true)
+                .send()
+                .await
+                .map_err(|e| {
+                    let error_msg = e.to_string();
+                    if error_msg.contains("DBInstanceNotFound") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} not found. It may already be deleted.", resource_id),
+                        )
+                    } else if error_msg.contains("InvalidDBInstanceState") {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("RDS instance {} cannot be deleted in its current state. Stop it first or wait for pending operations to complete.", resource_id),
+                        )
+                    } else {
+                        NimbusError::provider(
+                            "AWS",
+                            format!("Failed to terminate RDS instance {}: {}", resource_id, error_msg),
+                        )
+                    }
+                })?;
+            Ok(())
+        }
+        _ => Err(NimbusError::UnsupportedAction(action, ResourceType::Database)),
     }
 }
 
