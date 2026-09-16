@@ -3,7 +3,8 @@ use aws_config::SdkConfig;
 
 use crate::config::AwsConfig;
 use crate::core::{
-    Action, CloudProvider, CloudResource, CostBreakdown, CostPeriod, Provider, ResourceType,
+    Action, CloudProvider, CloudResource, CostBreakdown, CostPeriod, Provider, ResourceState,
+    ResourceType,
 };
 use crate::error::{NimbusError, Result};
 
@@ -474,5 +475,98 @@ mod tests {
         let result = provider.list_all_resources().await;
         assert!(result.is_err());
         
+    }
+
+    // --- Mock-response tests -------------------------------------------
+    //
+    // These build a real AwsClient wired to a fake HTTP layer (via the AWS
+    // SDK's own `StaticReplayClient` test utility) that replays a canned
+    // response instead of making a network call. This exercises our actual
+    // parsing/mapping code (EC2Instance::from_aws_instance, state mapping,
+    // error mapping) against real AWS response shapes, without touching a
+    // real account. Fixtures live in tests/fixtures/mock_responses/ so they
+    // can be reused for other resource types later.
+
+    use aws_config::{BehaviorVersion, Region, SdkConfig};
+    use aws_credential_types::provider::SharedCredentialsProvider;
+    use aws_credential_types::Credentials;
+    use aws_smithy_runtime::client::http::test_util::{ReplayEvent, StaticReplayClient};
+    use aws_smithy_types::body::SdkBody;
+    use http::{Request, Response};
+
+    /// Builds an AwsClient whose underlying HTTP layer replays a single
+    /// canned response for any request it receives.
+    fn mock_aws_client(status: u16, body: &str) -> AwsClient {
+        let replay = StaticReplayClient::new(vec![ReplayEvent::new(
+            Request::builder().body(SdkBody::empty()).unwrap(),
+            Response::builder()
+                .status(status)
+                .body(SdkBody::from(body))
+                .unwrap(),
+        )]);
+
+        let sdk_config = SdkConfig::builder()
+            .behavior_version(BehaviorVersion::latest())
+            .region(Region::new("us-east-1"))
+            .credentials_provider(SharedCredentialsProvider::new(Credentials::new(
+                "test-access-key",
+                "test-secret-key",
+                None,
+                None,
+                "nimbus-test",
+            )))
+            .http_client(replay)
+            .build();
+
+        AwsClient::new(&sdk_config)
+    }
+
+    /// Builds an AWSProvider that's "authenticated" against a mock client,
+    /// bypassing real credential lookup entirely.
+    fn test_provider_with_client(client: AwsClient) -> AWSProvider {
+        AWSProvider {
+            name: "AWS".to_string(),
+            config: AwsConfig::default(),
+            sdk_config: Some(
+                SdkConfig::builder()
+                    .behavior_version(BehaviorVersion::latest())
+                    .build(),
+            ),
+            client: Some(client),
+            cost_explorer: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_list_ec2_instances_parses_mock_response() {
+        let xml =
+            include_str!("../../../tests/fixtures/mock_responses/ec2_describe_instances.xml");
+        let provider = test_provider_with_client(mock_aws_client(200, xml));
+
+        let resources = provider
+            .list_ec2_instances()
+            .await
+            .expect("mock response should parse successfully");
+
+        assert_eq!(resources.len(), 2);
+
+        assert_eq!(resources[0].id(), "i-0123456789abcdef0");
+        assert_eq!(resources[0].name(), "web-server-1");
+        assert_eq!(resources[0].state(), ResourceState::Running);
+
+        assert_eq!(resources[1].id(), "i-0fedcba9876543210");
+        assert_eq!(resources[1].name(), "db-cache-node");
+        assert_eq!(resources[1].state(), ResourceState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn test_list_ec2_instances_maps_api_error() {
+        let xml = include_str!("../../../tests/fixtures/mock_responses/ec2_internal_error.xml");
+        let provider = test_provider_with_client(mock_aws_client(500, xml));
+
+        let result = provider.list_ec2_instances().await;
+
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), NimbusError::ProviderError(_, _)));
     }
 }
