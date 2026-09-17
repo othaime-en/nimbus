@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+    <Code>NoSuchTagSet</Code>
+    <Message>The TagSet does not exist</Message>
+    <BucketName>nimbus-backups</BucketName>
+    <RequestId>4442587FB7D0A2F9</RequestId>
+    <HostId>examplehostid</HostId>
+</Error>

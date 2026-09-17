@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DescribeTagsResponse xmlns="http://elasticloadbalancing.amazonaws.com/doc/2015-12-01/">
+  <DescribeTagsResult>
+    <TagDescriptions>
+      <member>
+        <ResourceArn>arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/nimbus-web-alb/50dc6c495c0c9188</ResourceArn>
+        <Tags>
+          <member>
+            <Key>Name</Key>
+            <Value>nimbus-web-alb</Value>
+          </member>
+          <member>
+            <Key>Team</Key>
+            <Value>platform</Value>
+          </member>
+        </Tags>
+      </member>
+    </TagDescriptions>
+  </DescribeTagsResult>
+  <ResponseMetadata>
+    <RequestId>360e81f7-1100-11e4-b4d8-2f627ee3239e</RequestId>
+  </ResponseMetadata>
+</DescribeTagsResponse>
