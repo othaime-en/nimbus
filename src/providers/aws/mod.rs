@@ -497,13 +497,30 @@ mod tests {
     /// Builds an AwsClient whose underlying HTTP layer replays a single
     /// canned response for any request it receives.
     fn mock_aws_client(status: u16, body: &str) -> AwsClient {
-        let replay = StaticReplayClient::new(vec![ReplayEvent::new(
-            Request::builder().body(SdkBody::empty()).unwrap(),
-            Response::builder()
-                .status(status)
-                .body(SdkBody::from(body))
-                .unwrap(),
-        )]);
+        mock_aws_client_sequence(vec![(status, body.to_string())])
+    }
+
+    /// Builds an AwsClient whose underlying HTTP layer replays a fixed
+    /// sequence of canned responses, in order. Needed for resource types
+    /// that make more than one call per list (e.g. a list call followed by
+    /// a per-resource tag lookup) — StaticReplayClient hands out queued
+    /// responses strictly in call order, shared across every sub-client
+    /// on this AwsClient since they all ride the same HTTP client.
+    fn mock_aws_client_sequence(responses: Vec<(u16, String)>) -> AwsClient {
+        let events = responses
+            .into_iter()
+            .map(|(status, body)| {
+                ReplayEvent::new(
+                    Request::builder().body(SdkBody::empty()).unwrap(),
+                    Response::builder()
+                        .status(status)
+                        .body(SdkBody::from(body))
+                        .unwrap(),
+                )
+            })
+            .collect();
+
+        let replay = StaticReplayClient::new(events);
 
         let sdk_config = SdkConfig::builder()
             .behavior_version(BehaviorVersion::latest())
@@ -568,5 +585,120 @@ mod tests {
 
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), NimbusError::ProviderError(_, _)));
+    }
+
+    #[tokio::test]
+    async fn test_list_rds_instances_parses_mock_response() {
+        let xml =
+            include_str!("../../../tests/fixtures/mock_responses/rds_describe_db_instances.xml");
+        let provider = test_provider_with_client(mock_aws_client(200, xml));
+
+        let resources = provider
+            .list_rds_instances()
+            .await
+            .expect("mock response should parse successfully");
+
+        assert_eq!(resources.len(), 2);
+
+        assert_eq!(resources[0].id(), "prod-postgres-1");
+        assert_eq!(resources[0].name(), "Production Postgres"); // from Name tag
+        assert_eq!(resources[0].state(), ResourceState::Running); // "available"
+
+        // No Name tag on this one -- name should fall back to the identifier.
+        assert_eq!(resources[1].id(), "staging-mysql-1");
+        assert_eq!(resources[1].name(), "staging-mysql-1");
+        assert_eq!(resources[1].state(), ResourceState::Stopped);
+    }
+
+    #[tokio::test]
+    async fn test_list_s3_buckets_parses_mock_response_and_tolerates_missing_tags() {
+        let list_xml = include_str!("../../../tests/fixtures/mock_responses/s3_list_buckets.xml");
+        let tags_xml =
+            include_str!("../../../tests/fixtures/mock_responses/s3_get_bucket_tagging.xml");
+        let no_tags_xml = include_str!(
+            "../../../tests/fixtures/mock_responses/s3_get_bucket_tagging_not_found.xml"
+        );
+
+        // Call order: ListBuckets, then GetBucketTagging once per bucket.
+        let provider = test_provider_with_client(mock_aws_client_sequence(vec![
+            (200, list_xml.to_string()),
+            (200, tags_xml.to_string()),
+            (404, no_tags_xml.to_string()),
+        ]));
+
+        let resources = provider
+            .list_s3_buckets()
+            .await
+            .expect("mock response should parse successfully");
+
+        assert_eq!(resources.len(), 2);
+
+        assert_eq!(resources[0].id(), "nimbus-app-assets");
+        assert_eq!(
+            resources[0].tags().get("Environment").map(String::as_str),
+            Some("production")
+        );
+
+        // Second bucket's tagging call 404s (no tags configured); our code
+        // treats that as "no tags" rather than failing the whole list.
+        assert_eq!(resources[1].id(), "nimbus-backups");
+        assert!(resources[1].tags().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_list_load_balancers_parses_mock_response() {
+        let lb_xml = include_str!(
+            "../../../tests/fixtures/mock_responses/elb_describe_load_balancers.xml"
+        );
+        let tags_xml =
+            include_str!("../../../tests/fixtures/mock_responses/elb_describe_tags.xml");
+
+        // Call order: DescribeLoadBalancers, then DescribeTags for the one LB.
+        let provider = test_provider_with_client(mock_aws_client_sequence(vec![
+            (200, lb_xml.to_string()),
+            (200, tags_xml.to_string()),
+        ]));
+
+        let resources = provider
+            .list_load_balancers()
+            .await
+            .expect("mock response should parse successfully");
+
+        assert_eq!(resources.len(), 1);
+        assert_eq!(resources[0].name(), "nimbus-web-alb");
+        assert_eq!(resources[0].state(), ResourceState::Running); // "active"
+        assert_eq!(
+            resources[0].tags().get("Team").map(String::as_str),
+            Some("platform")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_route53_zones_parses_mock_response() {
+        let zones_xml = include_str!(
+            "../../../tests/fixtures/mock_responses/route53_list_hosted_zones.xml"
+        );
+        let tags_xml = include_str!(
+            "../../../tests/fixtures/mock_responses/route53_list_tags_for_resource.xml"
+        );
+
+        // Call order: ListHostedZones, then ListTagsForResource for the one zone.
+        let provider = test_provider_with_client(mock_aws_client_sequence(vec![
+            (200, zones_xml.to_string()),
+            (200, tags_xml.to_string()),
+        ]));
+
+        let resources = provider
+            .list_route53_zones()
+            .await
+            .expect("mock response should parse successfully");
+
+        assert_eq!(resources.len(), 1);
+        assert_eq!(resources[0].id(), "/hostedzone/Z1D633PJN98FT9");
+        assert_eq!(resources[0].name(), "nimbus-app.com.");
+        assert_eq!(
+            resources[0].tags().get("Name").map(String::as_str),
+            Some("Nimbus App Zone")
+        );
     }
 }
