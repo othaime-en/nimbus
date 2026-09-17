@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DescribeLoadBalancersResponse xmlns="http://elasticloadbalancing.amazonaws.com/doc/2015-12-01/">
+  <DescribeLoadBalancersResult>
+    <LoadBalancers>
+      <member>
+        <LoadBalancerArn>arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/nimbus-web-alb/50dc6c495c0c9188</LoadBalancerArn>
+        <LoadBalancerName>nimbus-web-alb</LoadBalancerName>
+        <Type>application</Type>
+        <Scheme>internet-facing</Scheme>
+        <State>
+          <Code>active</Code>
+        </State>
+        <CreatedTime>2024-01-05T11:00:00.000Z</CreatedTime>
+        <DNSName>nimbus-web-alb-123456789.us-east-1.elb.amazonaws.com</DNSName>
+        <AvailabilityZones>
+          <member>
+            <ZoneName>us-east-1a</ZoneName>
+          </member>
+          <member>
+            <ZoneName>us-east-1b</ZoneName>
+          </member>
+        </AvailabilityZones>
+      </member>
+    </LoadBalancers>
+  </DescribeLoadBalancersResult>
+  <ResponseMetadata>
+    <RequestId>583d1493-1b3d-11e3-8d5b-6b1b2d76a1c1</RequestId>
+  </ResponseMetadata>
+</DescribeLoadBalancersResponse>
