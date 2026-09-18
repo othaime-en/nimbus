@@ -120,6 +120,7 @@ pub struct ProviderConfigs {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AwsConfig {
     pub profile: Option<String>,
     pub region: String,
@@ -139,6 +140,7 @@ impl Default for AwsConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct GcpConfig {
     pub project_id: String,
     pub credentials_file: Option<String>,
@@ -156,6 +158,7 @@ impl Default for GcpConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AzureConfig {
     pub subscription_id: String,
     pub tenant_id: Option<String>,
@@ -175,6 +178,7 @@ impl Default for AzureConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct UiConfig {
     pub default_tab: String,
     pub auto_refresh: bool,
@@ -192,6 +196,7 @@ impl Default for UiConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct CacheConfig {
     pub enabled: bool,
     pub max_age_hours: u64,
@@ -221,6 +226,7 @@ impl CacheConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
 pub struct RefreshConfig {
     pub interval_seconds: u64,
     pub auto_refresh_on_focus: bool,
