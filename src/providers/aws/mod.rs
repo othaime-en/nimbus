@@ -3,8 +3,7 @@ use aws_config::SdkConfig;
 
 use crate::config::AwsConfig;
 use crate::core::{
-    Action, CloudProvider, CloudResource, CostBreakdown, CostPeriod, Provider, ResourceState,
-    ResourceType,
+    Action, CloudProvider, CloudResource, CostBreakdown, CostPeriod, Provider, ResourceType,
 };
 use crate::error::{NimbusError, Result};
 
@@ -440,6 +439,7 @@ impl CloudProvider for AWSProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::ResourceState;
 
     #[test]
     fn test_provider_creation() {
@@ -583,8 +583,7 @@ mod tests {
 
         let result = provider.list_ec2_instances().await;
 
-        assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), NimbusError::ProviderError(_, _)));
+        assert!(matches!(result, Err(NimbusError::ProviderError(_, _))));
     }
 
     #[tokio::test]
