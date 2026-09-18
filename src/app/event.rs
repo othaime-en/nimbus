@@ -8,7 +8,7 @@
 
 use crate::app::{AppState, TabIndex, ViewMode};
 use crate::cache::CacheStore;
-use crate::core::{Action, Provider};
+use crate::core::{Action, Provider, ResourceType};
 use crate::error::Result;
 use crossterm::event::KeyCode;
 use log::{error, info, warn};
@@ -78,11 +78,14 @@ async fn handle_confirmation_mode(
             app_state.cancel_confirmation();
 
             let action_info = selected_resource_action(app_state).await;
-            if let Some((resource_id, resource_name, resource_provider, action)) = action_info {
+            if let Some((resource_id, resource_name, resource_provider, resource_type, action)) =
+                action_info
+            {
                 return execute_action_on_resource(
                     &resource_id,
                     &resource_name,
                     resource_provider,
+                    resource_type,
                     action,
                     app_state,
                     cache_store,
@@ -259,7 +262,9 @@ async fn handle_detail_mode(
         }
         KeyCode::Enter => {
             let action_info = selected_resource_action(app_state).await;
-            if let Some((resource_id, resource_name, resource_provider, action)) = action_info {
+            if let Some((resource_id, resource_name, resource_provider, resource_type, action)) =
+                action_info
+            {
                 if action.is_destructive() {
                     let message = format!(
                         "Are you sure you want to {} '{}'?\n\nThis action cannot be undone.\n\nPress Enter to confirm or ESC to cancel.",
@@ -273,6 +278,7 @@ async fn handle_detail_mode(
                         &resource_id,
                         &resource_name,
                         resource_provider,
+                        resource_type,
                         action,
                         app_state,
                         cache_store,
@@ -291,7 +297,7 @@ async fn handle_detail_mode(
 /// highlighted in its action list, if any.
 async fn selected_resource_action(
     app_state: &AppState,
-) -> Option<(String, String, Provider, Action)> {
+) -> Option<(String, String, Provider, ResourceType, Action)> {
     let resource_idx = app_state.get_selected_resource_index()?;
     let resources = app_state.resources.read().await;
     let resource = resources.get(resource_idx)?;
@@ -301,6 +307,7 @@ async fn selected_resource_action(
         resource.id().to_string(),
         resource.name().to_string(),
         resource.provider(),
+        resource.resource_type(),
         *action,
     ))
 }
@@ -325,6 +332,7 @@ async fn execute_action_on_resource(
     resource_id: &str,
     resource_name: &str,
     resource_provider: Provider,
+    resource_type: ResourceType,
     action: Action,
     app_state: &mut AppState,
     cache_store: &Option<Arc<CacheStore>>,
@@ -336,7 +344,11 @@ async fn execute_action_on_resource(
     for provider in &app_state.providers {
         let provider = provider.read().await;
         if provider.provider_type() == resource_provider {
-            action_result = Some(provider.execute_action(resource_id, action).await);
+            action_result = Some(
+                provider
+                    .execute_action(resource_id, resource_type, action)
+                    .await,
+            );
             break;
         }
     }

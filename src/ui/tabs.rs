@@ -39,8 +39,6 @@ pub async fn render_tab_content(frame: &mut Frame<'_>, area: Rect, state: &AppSt
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_render_tabs() {
         assert!(true);

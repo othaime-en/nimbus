@@ -130,10 +130,14 @@ impl CloudProvider for MockProvider {
         Ok(resources)
     }
 
-    async fn get_resource(&self, id: &str) -> Result<Box<dyn CloudResource>> {
+    async fn get_resource(
+        &self,
+        id: &str,
+        resource_type: ResourceType,
+    ) -> Result<Box<dyn CloudResource>> {
         self.resources
             .iter()
-            .find(|r| r.id == id)
+            .find(|r| r.id == id && r.resource_type == resource_type)
             .map(|r| {
                 Box::new(MockResource {
                     id: r.id.clone(),
@@ -148,7 +152,12 @@ impl CloudProvider for MockProvider {
             .ok_or_else(|| NimbusError::ResourceNotFound(id.to_string()))
     }
 
-    async fn execute_action(&self, _resource_id: &str, _action: Action) -> Result<()> {
+    async fn execute_action(
+        &self,
+        _resource_id: &str,
+        _resource_type: ResourceType,
+        _action: Action,
+    ) -> Result<()> {
         Ok(())
     }
 
@@ -256,7 +265,10 @@ async fn test_list_resources_by_type() {
 #[tokio::test]
 async fn test_get_resource() {
     let provider = create_mock_provider();
-    let resource = provider.get_resource("i-1234").await.unwrap();
+    let resource = provider
+        .get_resource("i-1234", ResourceType::Compute)
+        .await
+        .unwrap();
     assert_eq!(resource.name(), "web-server");
     assert_eq!(resource.resource_type(), ResourceType::Compute);
 }
@@ -264,7 +276,7 @@ async fn test_get_resource() {
 #[tokio::test]
 async fn test_get_resource_not_found() {
     let provider = create_mock_provider();
-    let result = provider.get_resource("not-exists").await;
+    let result = provider.get_resource("not-exists", ResourceType::Compute).await;
     assert!(result.is_err());
     match result {
         Err(NimbusError::ResourceNotFound(id)) => assert_eq!(id, "not-exists"),

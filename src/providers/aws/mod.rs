@@ -341,10 +341,14 @@ impl CloudProvider for AWSProvider {
         }
     }
 
-    async fn get_resource(&self, id: &str) -> Result<Box<dyn CloudResource>> {
+    async fn get_resource(
+        &self,
+        id: &str,
+        resource_type: ResourceType,
+    ) -> Result<Box<dyn CloudResource>> {
         self.ensure_authenticated().await?;
-        
-        if id.starts_with("i-") {
+
+        if resource_type == ResourceType::Compute {
             let client = self.get_client()?;
             let response = client
                 .ec2
@@ -367,26 +371,37 @@ impl CloudProvider for AWSProvider {
             }
         }
 
+        // RDS/S3/ELB/Route53 lookup-by-ID isn't implemented yet -- nothing
+        // in the app currently calls get_resource for those types, but this
+        // no longer silently mis-routes to the wrong service the way the
+        // old ID-shape guess did.
         Err(NimbusError::ResourceNotFound(id.to_string()))
     }
 
-    /// Dispatches a lifecycle action to the resource module that owns it.
-    ///
-    /// NOTE: resource kind is currently inferred from the ID's shape (EC2 IDs
-    /// start with "i-"; anything else is assumed to be RDS). This is a
-    /// placeholder good enough for AWS-only today, but it will not extend to
-    /// GCP/Azure resource IDs, which don't follow this convention. Before
-    /// Phase 3 dispatches actions across providers, this should be replaced
-    /// with an explicit resource-type lookup (e.g. via the cache or a
-    /// provider-qualified resource ID).
-    async fn execute_action(&self, resource_id: &str, action: Action) -> Result<()> {
+    /// Dispatches a lifecycle action to the resource module that owns it,
+    /// keyed on the caller-supplied resource_type (the caller already knows
+    /// this from the CloudResource it's acting on -- see the trait docs).
+    async fn execute_action(
+        &self,
+        resource_id: &str,
+        resource_type: ResourceType,
+        action: Action,
+    ) -> Result<()> {
         self.ensure_authenticated().await?;
         let client = self.get_client()?;
 
-        if resource_id.starts_with("i-") {
-            resources::ec2::execute_action(client, resource_id, action).await
-        } else {
-            resources::rds::execute_action(client, resource_id, action).await
+        match resource_type {
+            ResourceType::Compute => {
+                resources::ec2::execute_action(client, resource_id, action).await
+            }
+            ResourceType::Database => {
+                resources::rds::execute_action(client, resource_id, action).await
+            }
+            // S3/ELB/Route53 list Terminate in their supported_actions but
+            // there's no delete implementation for them yet. Fail cleanly
+            // and correctly-typed rather than silently routing to RDS the
+            // way the old ID-shape guess did.
+            other => Err(NimbusError::UnsupportedAction(action, other)),
         }
     }
 

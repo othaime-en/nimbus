@@ -38,8 +38,8 @@ use crate::error::Result;
 /// #   async fn test_connection(&self) -> Result<bool> { Ok(true) }
 /// #   async fn list_all_resources(&self) -> Result<Vec<Box<dyn nimbus::core::CloudResource>>> { Ok(vec![]) }
 /// #   async fn list_resources_by_type(&self, _: nimbus::core::ResourceType) -> Result<Vec<Box<dyn nimbus::core::CloudResource>>> { Ok(vec![]) }
-/// #   async fn get_resource(&self, _: &str) -> Result<Box<dyn nimbus::core::CloudResource>> { unimplemented!() }
-/// #   async fn execute_action(&self, _: &str, _: nimbus::core::Action) -> Result<()> { Ok(()) }
+/// #   async fn get_resource(&self, _: &str, _: nimbus::core::ResourceType) -> Result<Box<dyn nimbus::core::CloudResource>> { unimplemented!() }
+/// #   async fn execute_action(&self, _: &str, _: nimbus::core::ResourceType, _: nimbus::core::Action) -> Result<()> { Ok(()) }
 /// #   async fn get_total_cost(&self, _: nimbus::core::CostPeriod) -> Result<f64> { Ok(0.0) }
 /// #   async fn get_cost_breakdown(&self) -> Result<nimbus::core::CostBreakdown> { Ok(nimbus::core::CostBreakdown::new()) }
 /// #   fn regions(&self) -> Vec<String> { vec![] }
@@ -80,10 +80,28 @@ pub trait CloudProvider: Send + Sync {
     ) -> Result<Vec<Box<dyn CloudResource>>>;
     
     /// Retrieves a specific resource by its unique ID.
-    async fn get_resource(&self, id: &str) -> Result<Box<dyn CloudResource>>;
-    
+    ///
+    /// `resource_type` is required rather than inferred from `id`'s shape --
+    /// callers already know the type of the resource they're looking up
+    /// (e.g. from a cached `CloudResource`), and guessing from ID
+    /// conventions doesn't generalize across resource types or providers.
+    async fn get_resource(
+        &self,
+        id: &str,
+        resource_type: ResourceType,
+    ) -> Result<Box<dyn CloudResource>>;
+
     /// Executes an action on a resource.
-    async fn execute_action(&self, resource_id: &str, action: Action) -> Result<()>;
+    ///
+    /// See the `resource_type` note on `get_resource` above -- the same
+    /// reasoning applies here, and matters more: an unsupported or
+    /// mis-typed action can otherwise be routed at the wrong resource.
+    async fn execute_action(
+        &self,
+        resource_id: &str,
+        resource_type: ResourceType,
+        action: Action,
+    ) -> Result<()>;
     
     /// Gets the total cost for a given time period.
     async fn get_total_cost(&self, period: CostPeriod) -> Result<f64>;
