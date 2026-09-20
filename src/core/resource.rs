@@ -1,22 +1,22 @@
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt;
-use serde::{Deserialize, Serialize}; // CHANGES: Added serde imports for serialization support
+use std::fmt; // CHANGES: Added serde imports for serialization support
 
 /// Core trait representing any cloud resource across providers.
-/// 
+///
 /// This trait provides a unified interface for working with resources from different
 /// cloud providers (AWS, GCP, Azure). Implementations should provide resource-specific
 /// details while maintaining this common interface.
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```no_run
 /// use nimbus::core::{CloudResource, ResourceType, Provider, ResourceState};
-/// 
+///
 /// fn print_resource_info(resource: &dyn CloudResource) {
-///     println!("{} - {} ({})", 
-///         resource.name(), 
+///     println!("{} - {} ({})",
+///         resource.name(),
 ///         resource.resource_type().as_str(),
 ///         resource.state().as_str()
 ///     );
@@ -26,37 +26,37 @@ pub trait CloudResource: Send + Sync {
     /// Returns the unique identifier for this resource.
     /// Format is provider-specific (e.g., AWS instance ID, GCP resource name).
     fn id(&self) -> &str;
-    
+
     /// Returns the human-readable name of the resource.
     /// May be derived from tags or resource properties.
     fn name(&self) -> &str;
-    
+
     /// Returns the category/type of this resource.
     fn resource_type(&self) -> ResourceType;
-    
+
     /// Returns which cloud provider this resource belongs to.
     fn provider(&self) -> Provider;
-    
+
     /// Returns the region/zone where this resource is deployed.
     fn region(&self) -> &str;
-    
+
     /// Returns the current operational state of the resource.
     fn state(&self) -> ResourceState;
-    
+
     /// Returns estimated monthly cost in USD, if available.
     /// Returns None if cost data is unavailable or not applicable.
     fn cost_per_month(&self) -> Option<f64>;
-    
+
     /// Returns all tags/labels associated with this resource.
     fn tags(&self) -> &HashMap<String, String>;
-    
+
     /// Returns when this resource was created, if known.
     fn created_at(&self) -> Option<DateTime<Utc>>;
-    
+
     /// Returns the list of actions that can be performed on this resource.
     /// Actions depend on resource type and current state.
     fn supported_actions(&self) -> Vec<crate::core::action::Action>;
-    
+
     /// Returns a reference to the concrete type for downcasting.
     /// Used when resource-specific fields need to be accessed.
     fn as_any(&self) -> &dyn std::any::Any;
@@ -192,12 +192,18 @@ impl ResourceState {
 
     /// Returns true if the resource is in an active/running state.
     pub fn is_active(&self) -> bool {
-        matches!(self, ResourceState::Running | ResourceState::Pending | ResourceState::Starting)
+        matches!(
+            self,
+            ResourceState::Running | ResourceState::Pending | ResourceState::Starting
+        )
     }
 
     /// Returns true if the resource is in a transitional state.
     pub fn is_transitioning(&self) -> bool {
-        matches!(self, ResourceState::Pending | ResourceState::Starting | ResourceState::Stopping)
+        matches!(
+            self,
+            ResourceState::Pending | ResourceState::Starting | ResourceState::Stopping
+        )
     }
 
     /// Returns true if the resource can be started.

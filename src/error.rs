@@ -29,7 +29,10 @@ pub enum NimbusError {
 
     /// Attempted action is not supported for this resource type.
     #[error("Action {0:?} not supported for resource type {1:?}")]
-    UnsupportedAction(crate::core::action::Action, crate::core::resource::ResourceType),
+    UnsupportedAction(
+        crate::core::action::Action,
+        crate::core::resource::ResourceType,
+    ),
 
     /// Cache operation failed.
     #[error("Cache error: {0}")]

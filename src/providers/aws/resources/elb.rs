@@ -20,9 +20,16 @@ impl ELBLoadBalancer {
     pub fn from_aws_lb(lb: &LoadBalancer, region: &str) -> Self {
         let arn = lb.load_balancer_arn().unwrap_or("").to_string();
         let name = lb.load_balancer_name().unwrap_or("Unknown").to_string();
-        let lb_type = lb.r#type().map(|t| t.as_str().to_string()).unwrap_or_else(|| "application".to_string());
-        let scheme = lb.scheme().map(|s| s.as_str().to_string()).unwrap_or_else(|| "internet-facing".to_string());
-        let state = lb.state()
+        let lb_type = lb
+            .r#type()
+            .map(|t| t.as_str().to_string())
+            .unwrap_or_else(|| "application".to_string());
+        let scheme = lb
+            .scheme()
+            .map(|s| s.as_str().to_string())
+            .unwrap_or_else(|| "internet-facing".to_string());
+        let state = lb
+            .state()
             .and_then(|s| s.code())
             .map(|c| c.as_str().to_string())
             .unwrap_or_else(|| "unknown".to_string());

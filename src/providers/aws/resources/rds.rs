@@ -41,15 +41,15 @@ impl RDSInstance {
             .or_else(|| instance.db_instance_identifier().map(|s| s.to_string()))
             .unwrap_or_else(|| "Unknown".to_string());
 
-        let db_instance_id = instance
-            .db_instance_identifier()
-            .unwrap_or("")
-            .to_string();
+        let db_instance_id = instance.db_instance_identifier().unwrap_or("").to_string();
 
         let engine = instance.engine().unwrap_or("unknown").to_string();
         let engine_version = instance.engine_version().unwrap_or("").to_string();
         let instance_class = instance.db_instance_class().unwrap_or("").to_string();
-        let state = instance.db_instance_status().unwrap_or("unknown").to_string();
+        let state = instance
+            .db_instance_status()
+            .unwrap_or("unknown")
+            .to_string();
 
         let created_at = instance.instance_create_time().and_then(|dt| {
             DateTime::parse_from_rfc3339(&dt.to_string())
@@ -148,7 +148,11 @@ impl CloudResource for RDSInstance {
     }
 
     fn cost_per_month(&self) -> Option<f64> {
-        Some(estimate_rds_cost(&self.instance_class, self.storage_gb, self.multi_az))
+        Some(estimate_rds_cost(
+            &self.instance_class,
+            self.storage_gb,
+            self.multi_az,
+        ))
     }
 
     fn tags(&self) -> &HashMap<String, String> {
@@ -280,7 +284,10 @@ pub async fn execute_action(client: &AwsClient, resource_id: &str, action: Actio
                     if error_msg.contains("DBInstanceNotFound") {
                         NimbusError::provider(
                             "AWS",
-                            format!("RDS instance {} not found. It may have been deleted.", resource_id),
+                            format!(
+                                "RDS instance {} not found. It may have been deleted.",
+                                resource_id
+                            ),
                         )
                     } else if error_msg.contains("InvalidDBInstanceState") {
                         NimbusError::provider(
@@ -290,7 +297,10 @@ pub async fn execute_action(client: &AwsClient, resource_id: &str, action: Actio
                     } else {
                         NimbusError::provider(
                             "AWS",
-                            format!("Failed to restart RDS instance {}: {}", resource_id, error_msg),
+                            format!(
+                                "Failed to restart RDS instance {}: {}",
+                                resource_id, error_msg
+                            ),
                         )
                     }
                 })?;
@@ -325,7 +335,10 @@ pub async fn execute_action(client: &AwsClient, resource_id: &str, action: Actio
                 })?;
             Ok(())
         }
-        _ => Err(NimbusError::UnsupportedAction(action, ResourceType::Database)),
+        _ => Err(NimbusError::UnsupportedAction(
+            action,
+            ResourceType::Database,
+        )),
     }
 }
 
@@ -336,7 +349,10 @@ mod tests {
     #[test]
     fn test_estimate_rds_cost() {
         assert_eq!(estimate_rds_cost("db.t3.micro", None, false), 14.60);
-        assert_eq!(estimate_rds_cost("db.t3.micro", Some(100), false), 14.60 + 11.5);
+        assert_eq!(
+            estimate_rds_cost("db.t3.micro", Some(100), false),
+            14.60 + 11.5
+        );
         assert_eq!(
             estimate_rds_cost("db.t3.micro", Some(100), true),
             (14.60 + 11.5) * 2.0

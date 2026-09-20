@@ -24,7 +24,9 @@ impl AwsCostExplorer {
                     .start(start)
                     .end(end)
                     .build()
-                    .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
+                    .map_err(|e| {
+                        NimbusError::provider("AWS", format!("Invalid date range: {}", e))
+                    })?,
             )
             .granularity(Granularity::Monthly)
             .metrics("UnblendedCost")
@@ -38,7 +40,8 @@ impl AwsCostExplorer {
             .results_by_time()
             .iter()
             .filter_map(|result| {
-                result.total()
+                result
+                    .total()
                     .and_then(|total_map| total_map.get("UnblendedCost"))
                     .and_then(|metric| metric.amount())
                     .and_then(|amount| amount.parse::<f64>().ok())
@@ -60,7 +63,9 @@ impl AwsCostExplorer {
                     .start(&start)
                     .end(&end)
                     .build()
-                    .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
+                    .map_err(|e| {
+                        NimbusError::provider("AWS", format!("Invalid date range: {}", e))
+                    })?,
             )
             .granularity(Granularity::Monthly)
             .metrics("UnblendedCost")
@@ -104,7 +109,9 @@ impl AwsCostExplorer {
                     .start(start)
                     .end(end)
                     .build()
-                    .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
+                    .map_err(|e| {
+                        NimbusError::provider("AWS", format!("Invalid date range: {}", e))
+                    })?,
             )
             .granularity(Granularity::Monthly)
             .metrics("UnblendedCost")
@@ -164,7 +171,9 @@ impl AwsCostExplorer {
                     .start(start)
                     .end(end)
                     .build()
-                    .map_err(|e| NimbusError::provider("AWS", format!("Invalid date range: {}", e)))?,
+                    .map_err(|e| {
+                        NimbusError::provider("AWS", format!("Invalid date range: {}", e))
+                    })?,
             )
             .granularity(Granularity::Monthly)
             .metrics("UnblendedCost")
@@ -178,7 +187,8 @@ impl AwsCostExplorer {
             .results_by_time()
             .iter()
             .filter_map(|result| {
-                result.total()
+                result
+                    .total()
                     .and_then(|total_map| total_map.get("UnblendedCost"))
                     .and_then(|metric| metric.amount())
                     .and_then(|amount| amount.parse::<f64>().ok())

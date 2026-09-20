@@ -1,3 +1,3 @@
 pub mod store;
 
-pub use store::{CachedResource, CacheStore};
+pub use store::{CacheStore, CachedResource};

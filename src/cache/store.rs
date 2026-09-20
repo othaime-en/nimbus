@@ -67,8 +67,11 @@ impl CacheStore {
         let tx = self.conn.unchecked_transaction()?;
 
         for resource in resources {
-            let serialized_data = serde_json::to_string(&SerializableResource::from_resource(resource.as_ref()))
-                .map_err(|e| NimbusError::CacheError(format!("Failed to serialize resource: {}", e)))?;
+            let serialized_data =
+                serde_json::to_string(&SerializableResource::from_resource(resource.as_ref()))
+                    .map_err(|e| {
+                        NimbusError::CacheError(format!("Failed to serialize resource: {}", e))
+                    })?;
 
             let cached_at = Utc::now().timestamp();
 
@@ -151,11 +154,13 @@ impl CacheStore {
     }
 
     pub fn get_last_sync_time(&self, provider: Provider) -> Result<Option<DateTime<Utc>>> {
-        let mut stmt = self.conn.prepare(
-            "SELECT MAX(cached_at) FROM resources WHERE provider = ?1",
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT MAX(cached_at) FROM resources WHERE provider = ?1")?;
 
-        let timestamp: Option<i64> = stmt.query_row(params![provider.as_str()], |row| row.get(0)).ok();
+        let timestamp: Option<i64> = stmt
+            .query_row(params![provider.as_str()], |row| row.get(0))
+            .ok();
 
         Ok(timestamp.and_then(|ts| DateTime::from_timestamp(ts, 0)))
     }

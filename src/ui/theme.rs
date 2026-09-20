@@ -1,5 +1,5 @@
-use ratatui::style::{Color, Modifier, Style};
 use crate::core::ResourceType;
+use ratatui::style::{Color, Modifier, Style};
 
 pub struct Theme;
 
@@ -52,9 +52,7 @@ impl Theme {
     }
 
     pub fn error() -> Style {
-        Style::default()
-            .fg(Color::Red)
-            .add_modifier(Modifier::BOLD)
+        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
     }
 
     pub fn success() -> Style {
@@ -88,8 +86,7 @@ impl Theme {
 
     // CHANGES: Added cache_age style
     pub fn cache_age() -> Style {
-        Style::default()
-            .fg(Color::Yellow)
+        Style::default().fg(Color::Yellow)
     }
 }
 

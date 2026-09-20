@@ -19,32 +19,32 @@ use tokio::sync::RwLock;
 
 fn setup_logging() -> Result<()> {
     let log_dir = dirs::home_dir()
-        .ok_or_else(|| nimbus::NimbusError::ConfigError("Could not determine home directory".to_string()))?
+        .ok_or_else(|| {
+            nimbus::NimbusError::ConfigError("Could not determine home directory".to_string())
+        })?
         .join(".nimbus");
-    
+
     std::fs::create_dir_all(&log_dir)?;
-    
+
     let log_file_path = log_dir.join("nimbus.log");
-    
+
     let log_file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(&log_file_path)?;
 
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info")
-    )
-    .target(env_logger::Target::Pipe(Box::new(log_file)))
-    .format(|buf, record| {
-        writeln!(
-            buf,
-            "{} [{}] {}",
-            chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-            record.level(),
-            record.args()
-        )
-    })
-    .init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .target(env_logger::Target::Pipe(Box::new(log_file)))
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.args()
+            )
+        })
+        .init();
 
     Ok(())
 }
@@ -83,7 +83,7 @@ async fn main() -> Result<()> {
     let cache_store = if config.cache.enabled {
         let db_path = config.cache.get_db_path();
         info!("Initializing cache at: {:?}", db_path);
-        
+
         match CacheStore::new(&db_path, config.cache.max_age_hours) {
             Ok(store) => {
                 info!("Cache initialized successfully");
@@ -109,8 +109,9 @@ async fn main() -> Result<()> {
         match aws_provider.authenticate().await {
             Ok(_) => {
                 info!("AWS provider authenticated successfully");
-                providers.push(Arc::new(RwLock::new(Box::new(aws_provider)
-                    as Box<dyn nimbus::core::CloudProvider>)));
+                providers.push(Arc::new(RwLock::new(
+                    Box::new(aws_provider) as Box<dyn nimbus::core::CloudProvider>
+                )));
             }
             Err(e) => {
                 error!("AWS authentication failed: {}", e);
@@ -154,7 +155,7 @@ async fn run_tui(
         .with_cache_enabled(cache_enabled);
 
     info!("Loading initial resources...");
-    
+
     // Try to load from cache first if available
     // This provides instant startup if we have cached data
     let loaded_from_cache = if let Some(ref cache) = cache_store {
@@ -162,13 +163,13 @@ async fn run_tui(
         match cache.get_all_cached_resources() {
             Ok(cached_resources) if !cached_resources.is_empty() => {
                 info!("Found {} cached resources", cached_resources.len());
-                
+
                 if let Some(first) = cached_resources.first() {
                     app_state.last_refresh = Some(first.cached_at);
                     let age = chrono::Utc::now().signed_duration_since(first.cached_at);
                     info!("Cache age: {}", format_duration(age));
                 }
-                
+
                 // Note: The actual cached resources are in the database
                 // We just set the timestamp here for the cache age display
                 // The refresh call below will populate the actual resources
@@ -256,9 +257,7 @@ async fn run_app(
 
         terminal.draw(|f| {
             let future = ui::render(f, app_state);
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(future)
-            });
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future));
         })?;
 
         if app_state.should_quit {

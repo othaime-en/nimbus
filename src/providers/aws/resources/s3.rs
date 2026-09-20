@@ -43,7 +43,8 @@ impl S3Bucket {
     }
 
     pub fn size_gb(&self) -> Option<f64> {
-        self.size_bytes.map(|bytes| bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+        self.size_bytes
+            .map(|bytes| bytes as f64 / (1024.0 * 1024.0 * 1024.0))
     }
 }
 
@@ -110,7 +111,7 @@ mod tests {
     #[test]
     fn test_estimate_s3_cost() {
         assert_eq!(estimate_s3_cost(100.0), 100.0 * 0.023);
-        
+
         let large_size = 60.0 * 1024.0;
         let expected = 50.0 * 1024.0 * 0.023 + (large_size - 50.0 * 1024.0) * 0.022;
         assert_eq!(estimate_s3_cost(large_size), expected);

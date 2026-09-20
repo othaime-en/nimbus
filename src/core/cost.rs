@@ -25,7 +25,7 @@ impl CostPeriod {
 }
 
 /// Breakdown of cloud costs by service and region.
-/// 
+///
 /// Provides detailed cost information including totals and categorizations.
 /// Used by providers to return comprehensive cost data.
 #[derive(Debug, Clone)]

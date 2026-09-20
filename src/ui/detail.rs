@@ -286,7 +286,11 @@ fn render_confirmation_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
 
     let title = Paragraph::new("⚠ Confirm Action")
         .style(Theme::warning())
-        .block(Block::default().borders(Borders::ALL).style(Theme::warning()));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Theme::warning()),
+        );
 
     let message = Paragraph::new(state.confirmation_message.as_str())
         .wrap(Wrap { trim: true })
@@ -303,8 +307,7 @@ fn render_confirmation_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
     .block(Block::default().borders(Borders::ALL));
 
     frame.render_widget(
-        Block::default()
-            .style(Style::default().bg(ratatui::style::Color::Black)),
+        Block::default().style(Style::default().bg(ratatui::style::Color::Black)),
         area,
     );
     frame.render_widget(title, chunks[0]);

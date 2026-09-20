@@ -48,10 +48,7 @@ impl AWSProvider {
 
     fn get_client(&self) -> Result<&AwsClient> {
         self.client.as_ref().ok_or_else(|| {
-            NimbusError::auth(
-                "AWS",
-                "Client not initialized. Call authenticate() first.",
-            )
+            NimbusError::auth("AWS", "Client not initialized. Call authenticate() first.")
         })
     }
 
@@ -66,14 +63,9 @@ impl AWSProvider {
 
     async fn list_ec2_instances(&self) -> Result<Vec<Box<dyn CloudResource>>> {
         let client = self.get_client()?;
-        let response = client
-            .ec2
-            .describe_instances()
-            .send()
-            .await
-            .map_err(|e| {
-                NimbusError::provider("AWS", format!("Failed to list EC2 instances: {}", e))
-            })?;
+        let response = client.ec2.describe_instances().send().await.map_err(|e| {
+            NimbusError::provider("AWS", format!("Failed to list EC2 instances: {}", e))
+        })?;
 
         let mut instances: Vec<Box<dyn CloudResource>> = Vec::new();
 
@@ -140,10 +132,19 @@ impl AWSProvider {
         Ok(buckets)
     }
 
-    async fn get_bucket_tags(&self, bucket_name: &str) -> Result<std::collections::HashMap<String, String>> {
+    async fn get_bucket_tags(
+        &self,
+        bucket_name: &str,
+    ) -> Result<std::collections::HashMap<String, String>> {
         let client = self.get_client()?;
-        
-        match client.s3.get_bucket_tagging().bucket(bucket_name).send().await {
+
+        match client
+            .s3
+            .get_bucket_tagging()
+            .bucket(bucket_name)
+            .send()
+            .await
+        {
             Ok(response) => {
                 let tags = response
                     .tag_set()
@@ -171,7 +172,7 @@ impl AWSProvider {
 
         for lb in response.load_balancers() {
             let elb = ELBLoadBalancer::from_aws_lb(lb, &self.config.region);
-            
+
             if let Some(arn) = lb.load_balancer_arn() {
                 let tags = self.get_lb_tags(arn).await.unwrap_or_default();
                 load_balancers.push(Box::new(elb.with_tags(tags)));
@@ -185,18 +186,22 @@ impl AWSProvider {
 
     async fn get_lb_tags(&self, lb_arn: &str) -> Result<std::collections::HashMap<String, String>> {
         let client = self.get_client()?;
-        
-        match client.elb.describe_tags().resource_arns(lb_arn).send().await {
+
+        match client
+            .elb
+            .describe_tags()
+            .resource_arns(lb_arn)
+            .send()
+            .await
+        {
             Ok(response) => {
                 let tags = response
                     .tag_descriptions()
                     .iter()
                     .flat_map(|desc| desc.tags())
-                    .filter_map(|tag| {
-                        match (tag.key(), tag.value()) {
-                            (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
-                            _ => None,
-                        }
+                    .filter_map(|tag| match (tag.key(), tag.value()) {
+                        (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
+                        _ => None,
                     })
                     .collect();
                 Ok(tags)
@@ -228,10 +233,15 @@ impl AWSProvider {
         Ok(zones)
     }
 
-    async fn get_zone_tags(&self, zone_id: &str) -> Result<std::collections::HashMap<String, String>> {
+    async fn get_zone_tags(
+        &self,
+        zone_id: &str,
+    ) -> Result<std::collections::HashMap<String, String>> {
         let client = self.get_client()?;
-        
-        match client.route53.list_tags_for_resource()
+
+        match client
+            .route53
+            .list_tags_for_resource()
             .resource_type(aws_sdk_route53::types::TagResourceType::Hostedzone)
             .resource_id(zone_id)
             .send()
@@ -243,11 +253,11 @@ impl AWSProvider {
                     .map(|set| {
                         set.tags()
                             .iter()
-                            .filter_map(|tag| {
-                                match (tag.key(), tag.value()) {
-                                    (Some(key), Some(value)) => Some((key.to_string(), value.to_string())),
-                                    _ => None,
+                            .filter_map(|tag| match (tag.key(), tag.value()) {
+                                (Some(key), Some(value)) => {
+                                    Some((key.to_string(), value.to_string()))
                                 }
+                                _ => None,
                             })
                             .collect()
                     })
@@ -489,7 +499,6 @@ mod tests {
 
         let result = provider.list_all_resources().await;
         assert!(result.is_err());
-        
     }
 
     // --- Mock-response tests -------------------------------------------
@@ -571,8 +580,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_ec2_instances_parses_mock_response() {
-        let xml =
-            include_str!("../../../tests/fixtures/mock_responses/ec2_describe_instances.xml");
+        let xml = include_str!("../../../tests/fixtures/mock_responses/ec2_describe_instances.xml");
         let provider = test_provider_with_client(mock_aws_client(200, xml));
 
         let resources = provider
@@ -661,11 +669,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_load_balancers_parses_mock_response() {
-        let lb_xml = include_str!(
-            "../../../tests/fixtures/mock_responses/elb_describe_load_balancers.xml"
-        );
-        let tags_xml =
-            include_str!("../../../tests/fixtures/mock_responses/elb_describe_tags.xml");
+        let lb_xml =
+            include_str!("../../../tests/fixtures/mock_responses/elb_describe_load_balancers.xml");
+        let tags_xml = include_str!("../../../tests/fixtures/mock_responses/elb_describe_tags.xml");
 
         // Call order: DescribeLoadBalancers, then DescribeTags for the one LB.
         let provider = test_provider_with_client(mock_aws_client_sequence(vec![
@@ -689,9 +695,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_route53_zones_parses_mock_response() {
-        let zones_xml = include_str!(
-            "../../../tests/fixtures/mock_responses/route53_list_hosted_zones.xml"
-        );
+        let zones_xml =
+            include_str!("../../../tests/fixtures/mock_responses/route53_list_hosted_zones.xml");
         let tags_xml = include_str!(
             "../../../tests/fixtures/mock_responses/route53_list_tags_for_resource.xml"
         );

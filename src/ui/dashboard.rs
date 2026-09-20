@@ -81,15 +81,17 @@ fn calculate_dashboard_stats(resources: &[Box<dyn crate::core::CloudResource>]) 
         let cost = resource.cost_per_month().unwrap_or(0.0);
         total_cost += cost;
 
-        let type_stats = by_type.entry(resource.resource_type()).or_insert(TypeStats {
-            count: 0,
-            running: 0,
-            stopped: 0,
-            total_cost: 0.0,
-        });
+        let type_stats = by_type
+            .entry(resource.resource_type())
+            .or_insert(TypeStats {
+                count: 0,
+                running: 0,
+                stopped: 0,
+                total_cost: 0.0,
+            });
         type_stats.count += 1;
         type_stats.total_cost += cost;
-        
+
         match resource.state() {
             ResourceState::Running => type_stats.running += 1,
             ResourceState::Stopped => type_stats.stopped += 1,
@@ -148,18 +150,12 @@ fn render_cost_summary(frame: &mut Frame, area: Rect, stats: &DashboardStats) {
         Line::from(""),
         Line::from(vec![
             Span::styled("Monthly Cost: ", Theme::help_text()),
-            Span::styled(
-                format!("${:.2}", stats.total_cost),
-                Theme::title(),
-            ),
+            Span::styled(format!("${:.2}", stats.total_cost), Theme::title()),
             Span::raw("  "),
             Span::styled(trend_indicator, trend_style),
             Span::raw("    "),
             Span::styled("Resources: ", Theme::help_text()),
-            Span::styled(
-                format!("{}", stats.total_resources),
-                Theme::title(),
-            ),
+            Span::styled(format!("{}", stats.total_resources), Theme::title()),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -196,7 +192,9 @@ fn render_type_breakdown(frame: &mut Frame, area: Rect, stats: &DashboardStats) 
     let header_cells = ["Type", "Count", "Running", "Stopped", "Cost/Month"]
         .iter()
         .map(|h| ratatui::widgets::Cell::from(*h).style(Theme::table_header()));
-    let header = Row::new(header_cells).height(1).style(Theme::table_header());
+    let header = Row::new(header_cells)
+        .height(1)
+        .style(Theme::table_header());
 
     let mut type_list: Vec<(&ResourceType, &TypeStats)> = stats.by_type.iter().collect();
     type_list.sort_by(|a, b| b.1.total_cost.partial_cmp(&a.1.total_cost).unwrap());
@@ -240,7 +238,9 @@ fn render_region_breakdown(frame: &mut Frame, area: Rect, stats: &DashboardStats
     let header_cells = ["Region", "Resources", "Cost/Month"]
         .iter()
         .map(|h| ratatui::widgets::Cell::from(*h).style(Theme::table_header()));
-    let header = Row::new(header_cells).height(1).style(Theme::table_header());
+    let header = Row::new(header_cells)
+        .height(1)
+        .style(Theme::table_header());
 
     let mut region_list: Vec<(&String, &RegionStats)> = stats.by_region.iter().collect();
     region_list.sort_by(|a, b| b.1.total_cost.partial_cmp(&a.1.total_cost).unwrap());
@@ -280,7 +280,9 @@ fn render_top_resources(frame: &mut Frame, area: Rect, stats: &DashboardStats) {
     let header_cells = ["#", "Name", "Type", "Monthly Cost"]
         .iter()
         .map(|h| ratatui::widgets::Cell::from(*h).style(Theme::table_header()));
-    let header = Row::new(header_cells).height(1).style(Theme::table_header());
+    let header = Row::new(header_cells)
+        .height(1)
+        .style(Theme::table_header());
 
     let rows: Vec<Row> = stats
         .top_expensive

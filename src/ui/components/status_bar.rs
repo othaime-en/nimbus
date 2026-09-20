@@ -20,7 +20,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         frame.render_widget(status_bar, area);
         return;
     }
-    
+
     if let Some(ref error) = state.error_message {
         let error_line = Line::from(vec![
             Span::styled("✗ ", Theme::error()),
@@ -39,10 +39,7 @@ pub fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
             ("Enter", "Apply"),
         ]
     } else if state.show_confirmation {
-        vec![
-            ("Enter", "Confirm"),
-            ("ESC", "Cancel"),
-        ]
+        vec![("Enter", "Confirm"), ("ESC", "Cancel")]
     } else {
         match state.view_mode {
             ViewMode::Dashboard => {

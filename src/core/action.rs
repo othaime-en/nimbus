@@ -1,7 +1,7 @@
 use std::fmt;
 
 /// Actions that can be performed on cloud resources.
-/// 
+///
 /// Not all actions are supported by all resource types. Use
 /// `CloudResource::supported_actions()` to determine which actions
 /// are available for a specific resource.

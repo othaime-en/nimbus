@@ -1,7 +1,7 @@
 use crate::core::{CloudProvider, CloudResource};
+use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TabIndex {
@@ -152,7 +152,7 @@ impl AppState {
 
         self.last_refresh.map(|refresh_time| {
             let age = Utc::now().signed_duration_since(refresh_time);
-            
+
             if age.num_minutes() < 1 {
                 "just now".to_string()
             } else if age.num_minutes() < 60 {
@@ -336,13 +336,13 @@ impl AppState {
 
     pub fn apply_filter(&mut self) {
         let filter_lower = self.filter_text.to_lowercase();
-        
+
         if filter_lower.is_empty() {
             self.filtered_resources = (0..tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    self.resources.read().await.len()
-                })
-            })).collect();
+                tokio::runtime::Handle::current()
+                    .block_on(async { self.resources.read().await.len() })
+            }))
+                .collect();
         } else {
             self.filtered_resources = tokio::task::block_in_place(|| {
                 tokio::runtime::Handle::current().block_on(async {
@@ -353,8 +353,16 @@ impl AppState {
                         .filter(|(_, resource)| {
                             resource.name().to_lowercase().contains(&filter_lower)
                                 || resource.id().to_lowercase().contains(&filter_lower)
-                                || resource.resource_type().as_str().to_lowercase().contains(&filter_lower)
-                                || resource.state().as_str().to_lowercase().contains(&filter_lower)
+                                || resource
+                                    .resource_type()
+                                    .as_str()
+                                    .to_lowercase()
+                                    .contains(&filter_lower)
+                                || resource
+                                    .state()
+                                    .as_str()
+                                    .to_lowercase()
+                                    .contains(&filter_lower)
                                 || resource.region().to_lowercase().contains(&filter_lower)
                         })
                         .map(|(idx, _)| idx)
@@ -363,7 +371,9 @@ impl AppState {
             });
         }
 
-        if self.selected_index >= self.filtered_resources.len() && !self.filtered_resources.is_empty() {
+        if self.selected_index >= self.filtered_resources.len()
+            && !self.filtered_resources.is_empty()
+        {
             self.selected_index = self.filtered_resources.len() - 1;
         }
     }
@@ -390,9 +400,7 @@ impl AppState {
 
     pub fn total_resource_count(&self) -> usize {
         tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current().block_on(async {
-                self.resources.read().await.len()
-            })
+            tokio::runtime::Handle::current().block_on(async { self.resources.read().await.len() })
         })
     }
 }
@@ -448,7 +456,7 @@ mod tests {
         state.set_success("Action completed".to_string());
         assert_eq!(state.success_message, Some("Action completed".to_string()));
         assert!(state.error_message.is_none());
-        
+
         state.clear_success();
         assert!(state.success_message.is_none());
     }
@@ -458,7 +466,7 @@ mod tests {
         let mut state = AppState::new();
         state.set_error("Error".to_string());
         state.set_success("Success".to_string());
-        
+
         state.clear_messages();
         assert!(state.error_message.is_none());
         assert!(state.success_message.is_none());
@@ -475,7 +483,7 @@ mod tests {
     fn test_cache_age_display() {
         let mut state = AppState::new().with_cache_enabled(true);
         state.last_refresh = Some(Utc::now());
-        
+
         let age = state.cache_age_display();
         assert!(age.is_some());
         assert_eq!(age.unwrap(), "just now");
@@ -485,7 +493,7 @@ mod tests {
     fn test_is_using_cache() {
         let mut state = AppState::new().with_cache_enabled(true);
         assert!(!state.is_using_cache());
-        
+
         state.last_refresh = Some(Utc::now());
         assert!(state.is_using_cache());
     }

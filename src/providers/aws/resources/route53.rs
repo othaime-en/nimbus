@@ -16,9 +16,7 @@ impl Route53Zone {
     pub fn from_aws_zone(zone: &HostedZone, region: &str) -> Self {
         let zone_id = zone.id().to_string();
         let name = zone.name().to_string();
-        let is_private = zone.config()
-            .map(|c| c.private_zone())
-            .unwrap_or(false);
+        let is_private = zone.config().map(|c| c.private_zone()).unwrap_or(false);
         let resource_record_set_count = zone.resource_record_set_count();
 
         Self {
@@ -93,7 +91,7 @@ impl CloudResource for Route53Zone {
 
 fn estimate_route53_cost(record_count: Option<i64>) -> f64 {
     let base_cost = 0.50;
-    
+
     let record_cost = record_count
         .map(|count| {
             let billable_records = (count - 25).max(0) as f64;

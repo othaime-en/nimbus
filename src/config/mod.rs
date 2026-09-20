@@ -1,6 +1,6 @@
+use crate::error::{NimbusError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use crate::error::{NimbusError, Result};
 
 pub mod aws_profile;
 pub use aws_profile::AwsProfileDetector;
@@ -24,7 +24,7 @@ impl NimbusConfig {
                 return Self::from_file(&config_path);
             }
         }
-        
+
         let from_env = Self::from_env()?;
         Ok(from_env)
     }
@@ -32,25 +32,33 @@ impl NimbusConfig {
     pub fn from_file(path: &Path) -> Result<Self> {
         let contents = std::fs::read_to_string(path)
             .map_err(|e| NimbusError::ConfigRead(path.to_path_buf(), e))?;
-        
+
         toml::from_str(&contents).map_err(NimbusError::ConfigParse)
     }
 
     pub fn from_env() -> Result<Self> {
         let mut config = Self::default();
-        
+
         if let Ok(profile) = std::env::var("NIMBUS_AWS_PROFILE") {
-            config.providers.aws.get_or_insert_with(AwsConfig::default).profile = Some(profile);
+            config
+                .providers
+                .aws
+                .get_or_insert_with(AwsConfig::default)
+                .profile = Some(profile);
         }
-        
+
         if let Ok(region) = std::env::var("NIMBUS_AWS_REGION") {
-            config.providers.aws.get_or_insert_with(AwsConfig::default).region = region;
+            config
+                .providers
+                .aws
+                .get_or_insert_with(AwsConfig::default)
+                .region = region;
         }
-        
+
         if let Ok(enabled) = std::env::var("NIMBUS_CACHE_ENABLED") {
             config.cache.enabled = enabled.parse().unwrap_or(true);
         }
-        
+
         Ok(config)
     }
 
@@ -64,30 +72,31 @@ impl NimbusConfig {
         if other.providers.azure.is_some() {
             self.providers.azure = other.providers.azure;
         }
-        
+
         self
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.providers.aws.is_none() 
-            && self.providers.gcp.is_none() 
-            && self.providers.azure.is_none() {
+        if self.providers.aws.is_none()
+            && self.providers.gcp.is_none()
+            && self.providers.azure.is_none()
+        {
             return Err(NimbusError::ConfigError(
-                "At least one cloud provider must be configured".to_string()
+                "At least one cloud provider must be configured".to_string(),
             ));
         }
-        
+
         Ok(())
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
         let contents = toml::to_string_pretty(self)
             .map_err(|e| NimbusError::ConfigError(format!("Failed to serialize config: {}", e)))?;
-        
+
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         std::fs::write(path, contents)?;
         Ok(())
     }

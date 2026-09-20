@@ -54,13 +54,9 @@ impl EC2Instance {
                 .map(|dt| dt.with_timezone(&Utc))
         });
 
-        let public_ip = instance
-            .public_ip_address()
-            .map(|ip| ip.to_string());
+        let public_ip = instance.public_ip_address().map(|ip| ip.to_string());
 
-        let private_ip = instance
-            .private_ip_address()
-            .map(|ip| ip.to_string());
+        let private_ip = instance.private_ip_address().map(|ip| ip.to_string());
 
         Self {
             instance_id,
@@ -141,11 +137,7 @@ impl CloudResource for EC2Instance {
                 Action::Terminate,
                 Action::ViewDetails,
             ],
-            ResourceState::Stopped => vec![
-                Action::Start,
-                Action::Terminate,
-                Action::ViewDetails,
-            ],
+            ResourceState::Stopped => vec![Action::Start, Action::Terminate, Action::ViewDetails],
             ResourceState::Pending | ResourceState::Stopping => vec![Action::ViewDetails],
             _ => vec![Action::ViewDetails],
         }
@@ -246,17 +238,26 @@ pub async fn execute_action(client: &AwsClient, resource_id: &str, action: Actio
                     if error_msg.contains("InvalidInstanceID") {
                         NimbusError::provider(
                             "AWS",
-                            format!("EC2 instance {} not found. It may have been terminated.", resource_id),
+                            format!(
+                                "EC2 instance {} not found. It may have been terminated.",
+                                resource_id
+                            ),
                         )
                     } else if error_msg.contains("IncorrectInstanceState") {
                         NimbusError::provider(
                             "AWS",
-                            format!("EC2 instance {} must be running to restart. Start it first.", resource_id),
+                            format!(
+                                "EC2 instance {} must be running to restart. Start it first.",
+                                resource_id
+                            ),
                         )
                     } else {
                         NimbusError::provider(
                             "AWS",
-                            format!("Failed to restart EC2 instance {}: {}", resource_id, error_msg),
+                            format!(
+                                "Failed to restart EC2 instance {}: {}",
+                                resource_id, error_msg
+                            ),
                         )
                     }
                 })?;
@@ -274,18 +275,27 @@ pub async fn execute_action(client: &AwsClient, resource_id: &str, action: Actio
                     if error_msg.contains("InvalidInstanceID") {
                         NimbusError::provider(
                             "AWS",
-                            format!("EC2 instance {} not found. It may already be terminated.", resource_id),
+                            format!(
+                                "EC2 instance {} not found. It may already be terminated.",
+                                resource_id
+                            ),
                         )
                     } else {
                         NimbusError::provider(
                             "AWS",
-                            format!("Failed to terminate EC2 instance {}: {}", resource_id, error_msg),
+                            format!(
+                                "Failed to terminate EC2 instance {}: {}",
+                                resource_id, error_msg
+                            ),
                         )
                     }
                 })?;
             Ok(())
         }
-        _ => Err(NimbusError::UnsupportedAction(action, ResourceType::Compute)),
+        _ => Err(NimbusError::UnsupportedAction(
+            action,
+            ResourceType::Compute,
+        )),
     }
 }
 

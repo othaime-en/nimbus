@@ -1,10 +1,10 @@
+use async_trait::async_trait;
+use chrono::Utc;
 use nimbus::core::{
     Action, CloudProvider, CloudResource, CostBreakdown, CostPeriod, Provider, ResourceState,
     ResourceType,
 };
 use nimbus::error::{NimbusError, Result};
-use async_trait::async_trait;
-use chrono::Utc;
 use std::collections::HashMap;
 
 struct MockResource {
@@ -276,7 +276,9 @@ async fn test_get_resource() {
 #[tokio::test]
 async fn test_get_resource_not_found() {
     let provider = create_mock_provider();
-    let result = provider.get_resource("not-exists", ResourceType::Compute).await;
+    let result = provider
+        .get_resource("not-exists", ResourceType::Compute)
+        .await;
     assert!(result.is_err());
     match result {
         Err(NimbusError::ResourceNotFound(id)) => assert_eq!(id, "not-exists"),
@@ -287,7 +289,10 @@ async fn test_get_resource_not_found() {
 #[tokio::test]
 async fn test_get_total_cost() {
     let provider = create_mock_provider();
-    let cost = provider.get_total_cost(CostPeriod::ThisMonth).await.unwrap();
+    let cost = provider
+        .get_total_cost(CostPeriod::ThisMonth)
+        .await
+        .unwrap();
     assert_eq!(cost, 500.0);
 }
 

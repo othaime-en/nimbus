@@ -56,7 +56,9 @@ pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &App
     let header_cells = ["Type", "Name", "ID", "State", "Region", "Cost/Month"]
         .iter()
         .map(|h| Cell::from(*h).style(Theme::table_header()));
-    let header = Row::new(header_cells).height(1).style(Theme::table_header());
+    let header = Row::new(header_cells)
+        .height(1)
+        .style(Theme::table_header());
 
     let rows: Vec<Row> = state
         .filtered_resources
@@ -165,7 +167,11 @@ fn render_loading(frame: &mut Frame, area: Rect) {
     ];
 
     let paragraph = ratatui::widgets::Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).style(Theme::border()))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Theme::border()),
+        )
         .style(Theme::help_text())
         .alignment(ratatui::layout::Alignment::Center);
 
@@ -215,7 +221,11 @@ fn render_empty_state(frame: &mut Frame, area: Rect) {
     ];
 
     let paragraph = ratatui::widgets::Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).style(Theme::border()))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Theme::border()),
+        )
         .style(Theme::help_text())
         .alignment(ratatui::layout::Alignment::Center);
 
@@ -262,7 +272,11 @@ fn render_message(frame: &mut Frame, area: Rect, message: &str) {
     let text = vec![Line::from(""), Line::from(message)];
 
     let paragraph = ratatui::widgets::Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).style(Theme::border()))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .style(Theme::border()),
+        )
         .alignment(ratatui::layout::Alignment::Center);
 
     frame.render_widget(paragraph, area);
