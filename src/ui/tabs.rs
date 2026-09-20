@@ -39,8 +39,6 @@ pub async fn render_tab_content(frame: &mut Frame<'_>, area: Rect, state: &AppSt
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn test_render_tabs() {
-        assert!(true);
-    }
+    // Placeholder: rendering is exercised via manual/integration testing since
+    // it requires a live ratatui Frame. Revisit if tabs.rs grows real logic.
 }

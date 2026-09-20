@@ -13,6 +13,7 @@ use nimbus::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io::{self, Write};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -87,7 +88,7 @@ async fn main() -> Result<()> {
         match CacheStore::new(&db_path, config.cache.max_age_hours) {
             Ok(store) => {
                 info!("Cache initialized successfully");
-                Some(Arc::new(store))
+                Some(Rc::new(store))
             }
             Err(e) => {
                 warn!("Failed to initialize cache: {}", e);
@@ -141,7 +142,7 @@ async fn main() -> Result<()> {
 
 async fn run_tui(
     providers: Vec<Arc<RwLock<Box<dyn nimbus::core::CloudProvider>>>>,
-    cache_store: Option<Arc<CacheStore>>,
+    cache_store: Option<Rc<CacheStore>>,
 ) -> Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -242,7 +243,7 @@ fn format_duration(duration: chrono::Duration) -> String {
 async fn run_app(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app_state: &mut AppState,
-    cache_store: Option<Arc<CacheStore>>,
+    cache_store: Option<Rc<CacheStore>>,
 ) -> Result<()> {
     let mut last_message_time: Option<std::time::Instant> = None;
     const MESSAGE_DISPLAY_DURATION: Duration = Duration::from_secs(3);

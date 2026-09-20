@@ -74,7 +74,7 @@ impl CloudResource for S3Bucket {
     }
 
     fn cost_per_month(&self) -> Option<f64> {
-        self.size_gb().map(|gb| estimate_s3_cost(gb))
+        self.size_gb().map(estimate_s3_cost)
     }
 
     fn tags(&self) -> &HashMap<String, String> {

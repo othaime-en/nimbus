@@ -115,7 +115,7 @@ impl CacheStore {
                     resource_type: parse_resource_type(&type_str),
                     data: row.get(3)?,
                     cached_at: DateTime::from_timestamp(cached_at_timestamp, 0)
-                        .unwrap_or_else(|| Utc::now()),
+                        .unwrap_or_else(Utc::now),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -145,7 +145,7 @@ impl CacheStore {
                     resource_type: parse_resource_type(&type_str),
                     data: row.get(3)?,
                     cached_at: DateTime::from_timestamp(cached_at_timestamp, 0)
-                        .unwrap_or_else(|| Utc::now()),
+                        .unwrap_or_else(Utc::now),
                 })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;

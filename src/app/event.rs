@@ -12,7 +12,7 @@ use crate::core::{Action, Provider, ResourceType};
 use crate::error::Result;
 use crossterm::event::KeyCode;
 use log::{error, info, warn};
-use std::sync::Arc;
+use std::rc::Rc;
 use std::time::Instant;
 
 /// Refreshes resources from all providers and writes the result to cache
@@ -20,7 +20,7 @@ use std::time::Instant;
 /// after any resource action so the UI reflects the new state.
 pub async fn refresh_and_cache_resources(
     app_state: &mut AppState,
-    cache_store: &Option<Arc<CacheStore>>,
+    cache_store: &Option<Rc<CacheStore>>,
 ) -> Result<()> {
     app_state.refresh_resources().await?;
 
@@ -49,7 +49,7 @@ pub async fn refresh_and_cache_resources(
 pub async fn handle_key_event(
     key_code: KeyCode,
     app_state: &mut AppState,
-    cache_store: &Option<Arc<CacheStore>>,
+    cache_store: &Option<Rc<CacheStore>>,
 ) -> Option<Instant> {
     if app_state.show_confirmation {
         return handle_confirmation_mode(key_code, app_state, cache_store).await;
@@ -71,7 +71,7 @@ pub async fn handle_key_event(
 async fn handle_confirmation_mode(
     key_code: KeyCode,
     app_state: &mut AppState,
-    cache_store: &Option<Arc<CacheStore>>,
+    cache_store: &Option<Rc<CacheStore>>,
 ) -> Option<Instant> {
     match key_code {
         KeyCode::Enter => {
@@ -126,7 +126,7 @@ fn handle_filter_mode(key_code: KeyCode, app_state: &mut AppState) {
 async fn handle_list_mode(
     key_code: KeyCode,
     app_state: &mut AppState,
-    cache_store: &Option<Arc<CacheStore>>,
+    cache_store: &Option<Rc<CacheStore>>,
 ) -> Option<Instant> {
     match key_code {
         KeyCode::Char('q') => {
@@ -238,7 +238,7 @@ async fn handle_list_mode(
 async fn handle_detail_mode(
     key_code: KeyCode,
     app_state: &mut AppState,
-    cache_store: &Option<Arc<CacheStore>>,
+    cache_store: &Option<Rc<CacheStore>>,
 ) -> Option<Instant> {
     match key_code {
         KeyCode::Char('q') => {
@@ -335,7 +335,7 @@ async fn execute_action_on_resource(
     resource_type: ResourceType,
     action: Action,
     app_state: &mut AppState,
-    cache_store: &Option<Arc<CacheStore>>,
+    cache_store: &Option<Rc<CacheStore>>,
 ) -> Option<Instant> {
     info!("Executing action {:?} on resource {}", action, resource_id);
     app_state.start_loading();

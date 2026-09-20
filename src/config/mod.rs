@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 pub mod aws_profile;
 pub use aws_profile::AwsProfileDetector;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct NimbusConfig {
     #[serde(default)]
     pub providers: ProviderConfigs,
@@ -110,17 +110,6 @@ impl NimbusConfig {
     }
 }
 
-impl Default for NimbusConfig {
-    fn default() -> Self {
-        Self {
-            providers: ProviderConfigs::default(),
-            ui: UiConfig::default(),
-            cache: CacheConfig::default(),
-            refresh: RefreshConfig::default(),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProviderConfigs {
     pub aws: Option<AwsConfig>,
@@ -166,24 +155,13 @@ impl Default for GcpConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct AzureConfig {
     pub subscription_id: String,
     pub tenant_id: Option<String>,
     pub client_id: Option<String>,
     pub client_secret: Option<String>,
-}
-
-impl Default for AzureConfig {
-    fn default() -> Self {
-        Self {
-            subscription_id: String::new(),
-            tenant_id: None,
-            client_id: None,
-            client_secret: None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
