@@ -1,10 +1,10 @@
 # Nimbus
 
-A terminal-based interface for managing cloud resources across AWS, GCP, and Azure.
+A terminal-based interface for managing cloud resources. Currently supports AWS; GCP and Azure are planned.
 
 ## Overview
 
-Nimbus provides a unified view of your cloud infrastructure directly in the terminal. View, filter, and manage compute instances, databases, storage, and other cloud resources without switching between provider consoles.
+Nimbus provides a unified view of your cloud infrastructure directly in the terminal. View, filter, and manage EC2 instances, RDS databases, S3 buckets, load balancers, and Route 53 zones without switching to the AWS console. Multi-cloud support (GCP, Azure) is on the way.
 
 ## Installation
 
