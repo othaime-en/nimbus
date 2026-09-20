@@ -42,10 +42,8 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-          - target: x86_64-apple-darwin
-            os: macos-13
-          - target: aarch64-apple-darwin
-            os: macos-14
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -62,8 +60,8 @@ jobs:
       - name: Build release binary
         run: cargo build --release --locked --target ${{ matrix.target }}
 
-      - name: Package archive
-        id: package
+      - name: Package archive (Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -83,21 +81,106 @@ jobs:
           tar -czf "$ARCHIVE" "$STAGE_DIR"
           shasum -a 256 "$ARCHIVE" > "${ARCHIVE}.sha256"
 
-          echo "archive=${ARCHIVE}" >> "$GITHUB_OUTPUT"
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Package archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME
+          if ($version -notlike 'v*') {
+            $version = "dev-$($env:GITHUB_SHA.Substring(0,7))"
+          }
+
+          $stageDir = "$env:BIN_NAME-$version-${{ matrix.target }}"
+          New-Item -ItemType Directory -Path $stageDir | Out-Null
+
+          Copy-Item "target/${{ matrix.target }}/release/$env:BIN_NAME.exe" $stageDir
+          Copy-Item README.md,LICENSE,config.example.toml $stageDir
+
+          $archive = "$stageDir.zip"
+          Compress-Archive -Path $stageDir -DestinationPath $archive
+
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          "$hash  $archive" | Out-File -Encoding ascii "$archive.sha256"
+
+          Add-Content -Path $env:GITHUB_ENV -Value "ARCHIVE=$archive"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.BIN_NAME }}-${{ matrix.target }}
           path: |
-            ${{ steps.package.outputs.archive }}
-            ${{ steps.package.outputs.archive }}.sha256
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS (arm64 native + x86_64 cross-compiled)
+    needs: checks
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      # macos-14 runners are Apple Silicon (arm64). Rather than also
+      # requesting a separate x86_64 (Intel) macOS runner — a much
+      # smaller, often congested pool that can leave a run queued for
+      # hours — we build the x86_64 binary here too. Apple's clang/ld64
+      # is a universal toolchain that links x86_64 output natively on an
+      # arm64 host, so this needs no cross-linker setup beyond adding the
+      # Rust target.
+      - name: Install Rust (both macOS targets)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos-multi-target
+
+      - name: Build native arm64 binary
+        run: cargo build --release --locked --target aarch64-apple-darwin
+
+      - name: Cross-compile x86_64 binary
+        run: cargo build --release --locked --target x86_64-apple-darwin
+
+      - name: Package both archives
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${GITHUB_REF_NAME}"
+          if [[ "$VERSION" != v* ]]; then
+            VERSION="dev-${GITHUB_SHA::7}"
+          fi
+
+          for target in aarch64-apple-darwin x86_64-apple-darwin; do
+            STAGE_DIR="${BIN_NAME}-${VERSION}-${target}"
+            mkdir -p "$STAGE_DIR"
+
+            cp "target/${target}/release/${BIN_NAME}" "$STAGE_DIR/"
+            cp README.md LICENSE config.example.toml "$STAGE_DIR/"
+
+            ARCHIVE="${STAGE_DIR}.tar.gz"
+            tar -czf "$ARCHIVE" "$STAGE_DIR"
+            shasum -a 256 "$ARCHIVE" > "${ARCHIVE}.sha256"
+          done
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-macos-all
+          path: |
+            ${{ env.BIN_NAME }}-*-aarch64-apple-darwin.tar.gz
+            ${{ env.BIN_NAME }}-*-aarch64-apple-darwin.tar.gz.sha256
+            ${{ env.BIN_NAME }}-*-x86_64-apple-darwin.tar.gz
+            ${{ env.BIN_NAME }}-*-x86_64-apple-darwin.tar.gz.sha256
           if-no-files-found: error
 
   release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, build-macos]
     runs-on: ubuntu-latest
     permissions:
       contents: write
