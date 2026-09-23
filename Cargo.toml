@@ -19,6 +19,11 @@ aws-sdk-s3 = "1.13"
 aws-sdk-elasticloadbalancingv2 = "1.13"
 aws-sdk-route53 = "1.13"
 aws-sdk-costexplorer = "1.13"
+google-cloud-compute-v1 = { version = "3.5", features = ["instances"] }
+google-cloud-sql-v1 = "2.10"
+google-cloud-storage = "1.18"
+google-cloud-auth = "1.16"
+google-cloud-gax = "1.14"
 rusqlite = { version = "0.31", features = ["bundled"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
