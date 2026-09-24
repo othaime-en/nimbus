@@ -12,24 +12,25 @@ pub struct GcsBucket {
 }
 
 impl GcsBucket {
-    /// VERIFY: field names here (`location`, `storage_class`, `labels`,
-    /// `create_time`) are inferred from the Cloud Storage JSON API's
-    /// resource shape -- check against `cargo doc -p google-cloud-storage`
-    /// once this builds. `create_time` is expected to be a
-    /// `google_cloud_wkt::Timestamp` (protobuf `seconds`/`nanos` fields,
-    /// same shape as `prost_types::Timestamp`), converted to `chrono` below.
+    /// `Bucket.name`/`.location`/`.storage_class` are plain `String` in this
+    /// crate (empty string when unset), not `Option<String>` -- unlike
+    /// `google-cloud-compute-v1::model::Instance`, which does use `Option`
+    /// throughout. `create_time` is `Option<google_cloud_wkt::Timestamp>`;
+    /// `Timestamp`'s `seconds`/`nanos` are private fields with accessor
+    /// methods of the same name, not public fields.
     pub fn from_bucket(bucket: &Bucket) -> Self {
-        let name = bucket.name.clone().unwrap_or_default();
-        let location = bucket.location.clone().unwrap_or_default();
-        let storage_class = bucket
-            .storage_class
-            .clone()
-            .unwrap_or_else(|| "STANDARD".to_string());
+        let name = bucket.name.clone();
+        let location = bucket.location.clone();
+        let storage_class = if bucket.storage_class.is_empty() {
+            "STANDARD".to_string()
+        } else {
+            bucket.storage_class.clone()
+        };
 
         let created_at = bucket
             .create_time
             .as_ref()
-            .and_then(|ts| Utc.timestamp_opt(ts.seconds, ts.nanos as u32).single());
+            .and_then(|ts| Utc.timestamp_opt(ts.seconds(), ts.nanos() as u32).single());
 
         Self {
             name,
