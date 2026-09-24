@@ -1,4 +1,4 @@
-use crate::core::{CloudProvider, CloudResource};
+use crate::core::{CloudProvider, CloudResource, Provider};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -65,6 +65,20 @@ impl TabIndex {
             current_index - 1
         };
         all[prev_index]
+    }
+
+    /// Whether a resource from `provider` belongs on this tab. `AllClouds`
+    /// matches everything; the per-provider tabs match only their own
+    /// provider. This is the piece that was previously missing entirely --
+    /// `active_tab` was tracked but never used to filter which resources
+    /// were shown.
+    pub fn matches_provider(&self, provider: Provider) -> bool {
+        match self {
+            TabIndex::AWS => provider == Provider::AWS,
+            TabIndex::GCP => provider == Provider::GCP,
+            TabIndex::Azure => provider == Provider::Azure,
+            TabIndex::AllClouds => true,
+        }
     }
 }
 
@@ -167,14 +181,20 @@ impl AppState {
 
     pub fn next_tab(&mut self) {
         self.active_tab = self.active_tab.next();
+        self.selected_index = 0;
+        self.apply_filter();
     }
 
     pub fn prev_tab(&mut self) {
         self.active_tab = self.active_tab.prev();
+        self.selected_index = 0;
+        self.apply_filter();
     }
 
     pub fn set_tab(&mut self, tab: TabIndex) {
         self.active_tab = tab;
+        self.selected_index = 0;
+        self.apply_filter();
     }
 
     pub fn toggle_view_mode(&mut self) {
@@ -334,42 +354,44 @@ impl AppState {
         Ok(())
     }
 
+    /// Rebuilds `filtered_resources` from both the active tab and the text
+    /// filter. Previously this only applied the text filter -- `active_tab`
+    /// was tracked but nothing filtered by it, so every tab (including
+    /// per-provider ones) showed the full merged resource list. Called from
+    /// `next_tab`/`prev_tab`/`set_tab` as well as the filter-text mutators,
+    /// so switching tabs now re-scopes the list the same way editing the
+    /// filter does.
     pub fn apply_filter(&mut self) {
         let filter_lower = self.filter_text.to_lowercase();
+        let active_tab = self.active_tab;
 
-        if filter_lower.is_empty() {
-            self.filtered_resources = (0..tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current()
-                    .block_on(async { self.resources.read().await.len() })
-            }))
-                .collect();
-        } else {
-            self.filtered_resources = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    let resources = self.resources.read().await;
-                    resources
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, resource)| {
-                            resource.name().to_lowercase().contains(&filter_lower)
-                                || resource.id().to_lowercase().contains(&filter_lower)
-                                || resource
-                                    .resource_type()
-                                    .as_str()
-                                    .to_lowercase()
-                                    .contains(&filter_lower)
-                                || resource
-                                    .state()
-                                    .as_str()
-                                    .to_lowercase()
-                                    .contains(&filter_lower)
-                                || resource.region().to_lowercase().contains(&filter_lower)
-                        })
-                        .map(|(idx, _)| idx)
-                        .collect()
-                })
-            });
-        }
+        self.filtered_resources = tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::current().block_on(async {
+                let resources = self.resources.read().await;
+                resources
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, resource)| active_tab.matches_provider(resource.provider()))
+                    .filter(|(_, resource)| {
+                        filter_lower.is_empty()
+                            || resource.name().to_lowercase().contains(&filter_lower)
+                            || resource.id().to_lowercase().contains(&filter_lower)
+                            || resource
+                                .resource_type()
+                                .as_str()
+                                .to_lowercase()
+                                .contains(&filter_lower)
+                            || resource
+                                .state()
+                                .as_str()
+                                .to_lowercase()
+                                .contains(&filter_lower)
+                            || resource.region().to_lowercase().contains(&filter_lower)
+                    })
+                    .map(|(idx, _)| idx)
+                    .collect()
+            })
+        });
 
         if self.selected_index >= self.filtered_resources.len()
             && !self.filtered_resources.is_empty()
@@ -441,6 +463,7 @@ impl Clone for AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_tab_index_as_str() {
@@ -496,5 +519,128 @@ mod tests {
 
         state.last_refresh = Some(Utc::now());
         assert!(state.is_using_cache());
+    }
+
+    #[test]
+    fn test_tab_matches_provider() {
+        assert!(TabIndex::AWS.matches_provider(Provider::AWS));
+        assert!(!TabIndex::AWS.matches_provider(Provider::GCP));
+        assert!(TabIndex::GCP.matches_provider(Provider::GCP));
+        assert!(!TabIndex::GCP.matches_provider(Provider::Azure));
+        assert!(TabIndex::AllClouds.matches_provider(Provider::AWS));
+        assert!(TabIndex::AllClouds.matches_provider(Provider::GCP));
+        assert!(TabIndex::AllClouds.matches_provider(Provider::Azure));
+    }
+
+    struct FakeResource {
+        name: String,
+        provider: Provider,
+        labels: HashMap<String, String>,
+    }
+
+    impl FakeResource {
+        fn new(name: &str, provider: Provider) -> Self {
+            Self {
+                name: name.to_string(),
+                provider,
+                labels: HashMap::new(),
+            }
+        }
+    }
+
+    impl CloudResource for FakeResource {
+        fn id(&self) -> &str {
+            &self.name
+        }
+        fn name(&self) -> &str {
+            &self.name
+        }
+        fn resource_type(&self) -> crate::core::ResourceType {
+            crate::core::ResourceType::Compute
+        }
+        fn provider(&self) -> Provider {
+            self.provider
+        }
+        fn region(&self) -> &str {
+            "us-central1"
+        }
+        fn state(&self) -> crate::core::ResourceState {
+            crate::core::ResourceState::Running
+        }
+        fn cost_per_month(&self) -> Option<f64> {
+            None
+        }
+        fn tags(&self) -> &HashMap<String, String> {
+            &self.labels
+        }
+        fn created_at(&self) -> Option<DateTime<Utc>> {
+            None
+        }
+        fn supported_actions(&self) -> Vec<crate::core::Action> {
+            vec![]
+        }
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_apply_filter_scopes_by_active_tab() {
+        let mut state = AppState::new();
+        {
+            let mut resources = state.resources.write().await;
+            *resources = vec![
+                Box::new(FakeResource::new("aws-1", Provider::AWS)) as Box<dyn CloudResource>,
+                Box::new(FakeResource::new("gcp-1", Provider::GCP)) as Box<dyn CloudResource>,
+                Box::new(FakeResource::new("gcp-2", Provider::GCP)) as Box<dyn CloudResource>,
+            ];
+        }
+
+        state.set_tab(TabIndex::AWS);
+        assert_eq!(state.filtered_resources.len(), 1);
+
+        state.set_tab(TabIndex::GCP);
+        assert_eq!(state.filtered_resources.len(), 2);
+
+        state.set_tab(TabIndex::Azure);
+        assert_eq!(state.filtered_resources.len(), 0);
+
+        state.set_tab(TabIndex::AllClouds);
+        assert_eq!(state.filtered_resources.len(), 3);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_apply_filter_combines_tab_and_text_filter() {
+        let mut state = AppState::new();
+        {
+            let mut resources = state.resources.write().await;
+            *resources = vec![
+                Box::new(FakeResource::new("gcp-web", Provider::GCP)) as Box<dyn CloudResource>,
+                Box::new(FakeResource::new("gcp-db", Provider::GCP)) as Box<dyn CloudResource>,
+            ];
+        }
+
+        state.set_tab(TabIndex::GCP);
+        state.filter_text = "web".to_string();
+        state.apply_filter();
+
+        assert_eq!(state.filtered_resources.len(), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_next_tab_resets_selected_index() {
+        let mut state = AppState::new();
+        {
+            let mut resources = state.resources.write().await;
+            *resources = vec![
+                Box::new(FakeResource::new("aws-1", Provider::AWS)) as Box<dyn CloudResource>,
+                Box::new(FakeResource::new("aws-2", Provider::AWS)) as Box<dyn CloudResource>,
+            ];
+        }
+        state.set_tab(TabIndex::AWS);
+        state.selected_index = 1;
+
+        state.next_tab();
+        assert_eq!(state.selected_index, 0);
     }
 }
