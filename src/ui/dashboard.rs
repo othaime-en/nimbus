@@ -34,7 +34,22 @@ pub async fn render_dashboard(frame: &mut Frame<'_>, area: Rect, state: &AppStat
         return;
     }
 
-    let stats = calculate_dashboard_stats(&resources);
+    // Previously this always computed stats over the full cross-provider
+    // list regardless of `active_tab`, so the AWS/GCP/Azure dashboards were
+    // all identical to "All Clouds". Scope to `filtered_resources` (which
+    // `apply_filter` now keeps tab-aware) the same way resource_list.rs does.
+    let displayed: Vec<&Box<dyn crate::core::CloudResource>> = state
+        .filtered_resources
+        .iter()
+        .filter_map(|&idx| resources.get(idx))
+        .collect();
+
+    if displayed.is_empty() {
+        render_empty_tab_dashboard(frame, area, state.active_tab.as_str());
+        return;
+    }
+
+    let stats = calculate_dashboard_stats(&displayed);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -71,7 +86,7 @@ struct RegionStats {
     total_cost: f64,
 }
 
-fn calculate_dashboard_stats(resources: &[Box<dyn crate::core::CloudResource>]) -> DashboardStats {
+fn calculate_dashboard_stats(resources: &[&Box<dyn crate::core::CloudResource>]) -> DashboardStats {
     let mut by_type: HashMap<ResourceType, TypeStats> = HashMap::new();
     let mut by_region: HashMap<String, RegionStats> = HashMap::new();
     let mut total_cost = 0.0;
@@ -362,6 +377,37 @@ fn render_error_dashboard(frame: &mut Frame, area: Rect, error: &str) {
             Block::default()
                 .borders(Borders::ALL)
                 .title("Dashboard Error")
+                .style(Theme::border()),
+        )
+        .style(Theme::help_text())
+        .alignment(ratatui::layout::Alignment::Center);
+
+    frame.render_widget(paragraph, area);
+}
+
+fn render_empty_tab_dashboard(frame: &mut Frame, area: Rect, tab_name: &str) {
+    let text = vec![
+        Line::from(""),
+        Line::from(Span::styled(format!("No {} Resources", tab_name), Theme::title())),
+        Line::from(""),
+        Line::from(format!(
+            "No resources found for the {} tab -- other tabs may have data.",
+            tab_name
+        )),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Tab", Theme::help_key()),
+            Span::raw(": Switch tabs  "),
+            Span::styled("r", Theme::help_key()),
+            Span::raw(": Refresh"),
+        ]),
+    ];
+
+    let paragraph = Paragraph::new(text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Dashboard")
                 .style(Theme::border()),
         )
         .style(Theme::help_text())
