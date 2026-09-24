@@ -53,6 +53,14 @@ pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &App
         return;
     }
 
+    // Resources exist overall (checked above) but none belong to the
+    // active tab -- distinct from "no matches for the text filter" so the
+    // message points at switching tabs instead of clearing a filter.
+    if state.filtered_resources.is_empty() {
+        render_empty_tab(frame, table_area, state.active_tab.as_str());
+        return;
+    }
+
     let header_cells = ["Type", "Name", "ID", "State", "Region", "Cost/Month"]
         .iter()
         .map(|h| Cell::from(*h).style(Theme::table_header()));
@@ -101,14 +109,23 @@ pub async fn render_resource_list(frame: &mut Frame<'_>, area: Rect, state: &App
         Constraint::Length(12),
     ];
 
-    let title = if state.filtered_resources.len() != resources.len() {
+    // Compare against this tab's own total, not the full cross-provider
+    // count in `resources` -- otherwise a per-provider tab's "X of Y shown"
+    // would count resources from other providers that could never appear
+    // here.
+    let tab_total = resources
+        .iter()
+        .filter(|r| state.active_tab.matches_provider(r.provider()))
+        .count();
+
+    let title = if state.filtered_resources.len() != tab_total {
         format!(
             "Resources ({} of {} shown)",
             state.filtered_resources.len(),
-            resources.len()
+            tab_total
         )
     } else {
-        format!("Resources ({})", resources.len())
+        format!("Resources ({})", tab_total)
     };
 
     let table = Table::new(rows, widths)
@@ -262,6 +279,32 @@ fn render_no_matches(frame: &mut Frame, area: Rect, filter: &str) {
                 .title("No Matches")
                 .style(Theme::border()),
         )
+        .style(Theme::help_text())
+        .alignment(ratatui::layout::Alignment::Center);
+
+    frame.render_widget(paragraph, area);
+}
+
+fn render_empty_tab(frame: &mut Frame, area: Rect, tab_name: &str) {
+    let text = vec![
+        Line::from(""),
+        Line::from(Span::styled(format!("No {} Resources", tab_name), Theme::title())),
+        Line::from(""),
+        Line::from(format!("No resources found for the {} tab.", tab_name)),
+        Line::from("Other tabs may have resources -- try switching tabs."),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Tab", Theme::help_key()),
+            Span::raw(": Switch tabs  "),
+            Span::styled("r", Theme::help_key()),
+            Span::raw(": Refresh  "),
+            Span::styled("q", Theme::help_key()),
+            Span::raw(": Quit"),
+        ]),
+    ];
+
+    let paragraph = ratatui::widgets::Paragraph::new(text)
+        .block(Block::default().borders(Borders::ALL).style(Theme::border()))
         .style(Theme::help_text())
         .alignment(ratatui::layout::Alignment::Center);
 
