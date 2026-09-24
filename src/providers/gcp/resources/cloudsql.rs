@@ -13,41 +13,27 @@ pub struct CloudSqlInstance {
 }
 
 impl CloudSqlInstance {
-    /// VERIFY: field names/shapes here (`database_version`, `state`,
-    /// `settings.tier`, `settings.user_labels`) are inferred from the
-    /// Cloud SQL Admin API's REST resource rather than confirmed against
-    /// this crate's generated model -- check against
-    /// `cargo doc -p google-cloud-sql-v1` once this builds. The Cloud SQL
-    /// Admin API also doesn't expose a creation timestamp on this
+    /// `DatabaseInstance.name`/`.region` and `Settings.tier` are plain
+    /// `String` in this crate (empty string when unset), not `Option<String>`
+    /// -- unlike `google-cloud-compute-v1::model::Instance`, which does use
+    /// `Option` throughout. `database_version` and `state` are non-optional
+    /// enums (`SqlDatabaseVersion`, `SqlInstanceState`) with their own
+    /// "unspecified" variant rather than being wrapped in `Option`. The
+    /// Cloud SQL Admin API also doesn't expose a creation timestamp on this
     /// resource, so `created_at()` always returns `None` -- that's not a
     /// gap in this mapping, the API just doesn't have the field.
     pub fn from_sql_instance(instance: &DatabaseInstance) -> Self {
-        let name = instance.name.clone().unwrap_or_default();
-
-        let database_version = instance
-            .database_version
-            .as_ref()
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "unknown".to_string());
-
-        let state = instance
-            .state
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "UNKNOWN".to_string());
+        let name = instance.name.clone();
+        let database_version = instance.database_version.to_string();
+        let state = instance.state.to_string();
 
         let (tier, labels) = instance
             .settings
             .as_ref()
-            .map(|s| {
-                (
-                    s.tier.clone().unwrap_or_else(|| "unknown".to_string()),
-                    s.user_labels.clone(),
-                )
-            })
+            .map(|s| (s.tier.clone(), s.user_labels.clone()))
             .unwrap_or_else(|| ("unknown".to_string(), HashMap::new()));
 
-        let region = instance.region.clone().unwrap_or_default();
+        let region = instance.region.clone();
 
         Self {
             name,
