@@ -8,7 +8,7 @@ use nimbus::{
     app::{handle_key_event, refresh_and_cache_resources, AppState},
     cache::CacheStore,
     core::CloudProvider,
-    providers::AWSProvider,
+    providers::{AWSProvider, GCPProvider},
     ui, NimbusConfig, Result,
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
@@ -121,8 +121,22 @@ async fn main() -> Result<()> {
         }
     }
 
-    if config.providers.gcp.is_some() {
-        info!("GCP provider configured (not implemented yet)");
+    if let Some(gcp_config) = config.providers.gcp {
+        info!("Initializing GCP provider...");
+        let mut gcp_provider = GCPProvider::new(gcp_config);
+
+        match gcp_provider.authenticate().await {
+            Ok(_) => {
+                info!("GCP provider authenticated successfully");
+                providers.push(Arc::new(RwLock::new(
+                    Box::new(gcp_provider) as Box<dyn nimbus::core::CloudProvider>
+                )));
+            }
+            Err(e) => {
+                error!("GCP authentication failed: {}", e);
+                error!("Continuing without GCP provider");
+            }
+        }
     }
     if config.providers.azure.is_some() {
         info!("Azure provider configured (not implemented yet)");
